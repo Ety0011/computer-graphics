@@ -106,32 +106,78 @@ public:
 		 
 		------------------------------------------------- */
 
-		// TODO: add also when the ray origin is not at point (0, 0, 0).
     	// Assuming ray.direction is normal
+    	ray.direction = glm::normalize(ray.direction);
+
+    	/**
+    	Debugging purposes
+    	if (ray.direction.x > -0.01
+    		&& ray.direction.x < 0.01
+    		&& ray.direction.y < 0.01
+    		&& ray.direction.y > -0.01) {
+    		int j = 0;
+    	}
+    	*/
+
+    	/**
+    	Translation of coordinate system
+    	Old coordinate system (O) has origin at (x0, y0).
+    	New coordinate system (N) has origin at (x1, y1).
+    	A coordinate (x, y), in the new system (x', y') is:
+    	x' = x - (x1 - x0)
+    	y' = y - (y1 - y0)
+    	*/
+
+    	// Translate variables to new coordinate system
+		glm::vec3 translationOffset = ray.origin;
+    	ray.origin -= translationOffset;
+    	ray.direction -= translationOffset;
+    	center -= translationOffset;
+
+    	// Variable names are taken from notes
 		float a = glm::dot(center, ray.direction);
     	float d = std::sqrt(
 			std::pow(glm::length(center), 2) -
 			std::pow(a, 2)
 		);
-		if (d <= radius) {
+    	float closest_t;
+		if (d == radius) {
+			closest_t = a;
+		} else if (d < radius) {
 			float b = std::sqrt(
 				std::pow(radius, 2) -
 				std::pow(d, 2)
 			);
-			float t1 = a + b;
-			// TODO maybe should be > 1 instead of > 0
-			t1 = t1 > 0 ? t1 : INFINITY;
-			float t2 = a - b;
-			t2 = t2 > 0 ? t2 : INFINITY;
-			float closest_t = std::min(t1, t2);
-			// Intersections, if any, could be behind camera
-			if (closest_t != INFINITY) {
-				hit.hit = true;
-				hit.intersection = ray.direction * closest_t;
-				hit.distance = glm::distance(ray.origin, hit.intersection);
-				hit.normal = glm::normalize(hit.intersection - center);
-				hit.object = this;
+			float t1 = a - b;
+			float t2 = a + b;
+
+			// check if camera is not inside sphere
+			if (t1 < 0 && 0 < t2) {
+				closest_t = INFINITY;
+			} else {
+				t1 = t1 >= 0 ? t1 : INFINITY;
+				t2 = t2 >= 0 ? t2 : INFINITY;
+				closest_t = std::min(t1, t2);
 			}
+		} else {
+			closest_t = INFINITY;
+		}
+
+		// Translate back object variables to old coordinate system
+		ray.origin += translationOffset;
+		ray.direction += translationOffset;
+		center += translationOffset;
+
+		if (closest_t != INFINITY) {
+			hit.hit = true;
+			hit.intersection = ray.direction * closest_t;
+
+			// Translate back intersection to old coordinate system
+			hit.intersection += ray.origin;
+
+			hit.distance = glm::distance(ray.origin, hit.intersection);
+			hit.normal = glm::normalize(hit.intersection - center);
+			hit.object = this;
 		}
 		return hit;
 	}
