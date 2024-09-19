@@ -119,6 +119,7 @@ public:
 				std::pow(d, 2)
 			);
 			float t1 = a + b;
+			// TODO maybe should be > 1 instead of > 0
 			t1 = t1 > 0 ? t1 : INFINITY;
 			float t2 = a - b;
 			t2 = t2 > 0 ? t2 : INFINITY;
@@ -128,7 +129,7 @@ public:
 				hit.hit = true;
 				hit.intersection = ray.direction * closest_t;
 				hit.distance = glm::distance(ray.origin, hit.intersection);
-				hit.normal = glm::normalize(hit.intersection - ray.origin);
+				hit.normal = glm::normalize(hit.intersection - center);
 				hit.object = this;
 			}
 		}
@@ -216,13 +217,15 @@ glm::vec3 trace_ray(Ray ray){
  */
 void sceneDefinition (){
 
-	objects.push_back(new Sphere(1.0, glm::vec3(-0,-2,8), glm::vec3(0.6, 0.9, 0.6)));
-	
+	objects.push_back(new Sphere(1.0, glm::vec3(0,-2,8), glm::vec3(0.6, 0.9, 0.6)));
+
 	/* ------------------Excercise 2--------------------
 	 
 	Place for your code: additional sphere
 	 
 	------------------------------------------------- */
+
+	objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), glm::vec3(0.6, 0.6, 0.9)));
 	
 	
 	/* ------------------Excercise 3--------------------
