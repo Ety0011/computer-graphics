@@ -131,7 +131,6 @@ public:
     	// Translate variables to new coordinate system
 		glm::vec3 translationOffset = ray.origin;
     	ray.origin -= translationOffset;
-    	ray.direction -= translationOffset;
     	center -= translationOffset;
 
     	// Variable names are taken from notes
@@ -165,7 +164,6 @@ public:
 
 		// Translate back object variables to old coordinate system
 		ray.origin += translationOffset;
-		ray.direction += translationOffset;
 		center += translationOffset;
 
 		if (closest_t != INFINITY) {
@@ -316,7 +314,7 @@ int main(int argc, const char * argv[]) {
 	// (X, Y) = top left corner coordinate
 	const float X = -(width * PIXEL_SIZE) / 2;
 	const float Y = (height * PIXEL_SIZE) / 2;
-	glm::vec3 origin(0, 0, 0);
+	glm::vec3 origin(0, -2, 0);
 	float z = 1.0f;
     for(int w = 0; w < width; w++)
         for(int h = 0; h < height; h++){
