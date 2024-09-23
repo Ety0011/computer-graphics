@@ -23,7 +23,7 @@ public:
     glm::vec3 origin; ///< Origin of the ray
     glm::vec3 direction; ///< Direction of the ray
 	/**
-	 Contructor of the ray
+	 Constructor of the ray
 	 @param origin Origin of the ray
 	 @param direction Direction of the ray
 	 */
@@ -106,19 +106,6 @@ public:
 		 
 		------------------------------------------------- */
 
-    	// Assuming ray.direction is normal
-    	ray.direction = glm::normalize(ray.direction);
-
-    	/**
-    	Debugging purposes
-    	if (ray.direction.x > -0.01
-    		&& ray.direction.x < 0.01
-    		&& ray.direction.y < 0.01
-    		&& ray.direction.y > -0.01) {
-    		int j = 0;
-    	}
-    	*/
-
     	/**
     	Translation of coordinate system
     	Old coordinate system (O) has origin at (x0, y0).
@@ -127,6 +114,8 @@ public:
     	x' = x - (x1 - x0)
     	y' = y - (y1 - y0)
     	*/
+
+        // TODO: add f to floats
 
     	// Translate variables to new coordinate system
 		glm::vec3 translationOffset = ray.origin;
@@ -187,7 +176,7 @@ public:
 class Light{
 public:
 	glm::vec3 position; ///< Position of the light source
-	glm::vec3 color; ///< Color/intentisty of the light source
+	glm::vec3 color; ///< Color/intensity of the light source
 	Light(glm::vec3 position): position(position){
 		color = glm::vec3(1.0);
 	}
@@ -210,13 +199,15 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 
 	glm::vec3 color(0.0);
 	
-	/* ------------------Excercise 3--------------------
+	/* ------------------Exercise 3--------------------
 	 
 	 Phong model.
-	 Your code should implement a loop over all the lightsourses in the array lights and agredate the contribution of each of them to the final color of the object.
-	 Outside of the loop add also the ambient component from ambient_light.
+	 Your code should implement a loop over all the lighthouses in the array lights and aggregate the contribution of each of them to the final color of the object.
+	 Outside the loop add also the ambient component from ambient_light.
 				 
 	 ------------------------------------------------- */
+
+
 	
 	// The final color has to be clamped so the values do not go beyond 0 and 1.
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
@@ -244,7 +235,7 @@ glm::vec3 trace_ray(Ray ray){
 	glm::vec3 color(0.0);
 
 	if(closest_hit.hit){
-		/* ------------------Excercise 3--------------------
+		/* ------------------Exercise 3--------------------
 		 
 		 Use the second line when you implement PhongModel function - Exercise 3
 					 
@@ -261,18 +252,18 @@ glm::vec3 trace_ray(Ray ray){
  */
 void sceneDefinition (){
 
-	objects.push_back(new Sphere(1.0, glm::vec3(0,-2,8), glm::vec3(0.6, 0.9, 0.6)));
+	// objects.push_back(new Sphere(1.0, glm::vec3(0,-2,8), glm::vec3(0.6, 0.9, 0.6)));
 
-	/* ------------------Excercise 2--------------------
+	/* ------------------Exercise 2--------------------
 	 
 	Place for your code: additional sphere
 	 
 	------------------------------------------------- */
 
-	objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), glm::vec3(0.6, 0.6, 0.9)));
+    //	objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), glm::vec3(0.6, 0.6, 0.9)));
 	
 	
-	/* ------------------Excercise 3--------------------
+	/* ------------------Exercise 3--------------------
 	 
 	 Add here all the objects to the scene. Remember to add them using the constructor for the sphere with material structure.
 	 You will also need to define the materials.
@@ -291,6 +282,38 @@ void sceneDefinition (){
 	 lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(0.4)));
 	 
 	------------------------------------------------- */
+
+    Material blueMaterial;
+    blueMaterial.ambient = glm::vec3(0.07f, 0.07f, 0.1f);
+    blueMaterial.diffuse = glm::vec3(0.7f, 0.7f, 1.0f);
+    blueMaterial.specular = glm::vec3(0.6f, 0.6f, 0.6f);
+    blueMaterial.shininess = 100.0f;
+    objects.push_back(new Sphere(1.0f,
+                                 glm::vec3(1.0f, -2.0f, 8.0f),
+                                 blueMaterial));
+
+    Material redMaterial;
+    blueMaterial.ambient = glm::vec3(0.01f, 0.03f, 0.03f);
+    blueMaterial.diffuse = glm::vec3(1.0f, 0.3f, 0.3f);
+    blueMaterial.specular = glm::vec3(0.5f, 0.5f, 0.5f);
+    blueMaterial.shininess = 10.0f;
+    objects.push_back(new Sphere(0.5f,
+                                 glm::vec3(-1.0f, -2.5f, 6.0f),
+                                 blueMaterial));
+
+    Material greenMaterial;
+    blueMaterial.ambient = glm::vec3(0.07f, 0.09f, 0.07f);
+    blueMaterial.diffuse = glm::vec3(0.7f, 0.9f, 0.7f);
+    blueMaterial.specular = glm::vec3(0.0f, 0.0f, 0.0f);
+    blueMaterial.shininess = 0.0f;
+    objects.push_back(new Sphere(0.5f,
+                                 glm::vec3(2.0f, -2.0f, 6.0f),
+                                 blueMaterial));
+
+    lights.push_back(new Light(glm::vec3(0.0f, 26.0f, 5.0f), glm::vec3(0.4)));
+    lights.push_back(new Light(glm::vec3(0.0f, 1.0f, 12.0f), glm::vec3(0.4)));
+    lights.push_back(new Light(glm::vec3(0.0f, 5.0f, 1.0f), glm::vec3(0.4)));
+
 }
 
 int main(int argc, const char * argv[]) {
@@ -310,8 +333,8 @@ int main(int argc, const char * argv[]) {
 	Place for your code: Loop over pixels to form and traverse the rays through the scene
 	 
 	------------------------------------------------- */
-	const float PIXEL_SIZE = (2 * std::tan(fov / 2)) / width;
-	// (X, Y) = top left corner coordinate
+    const float PIXEL_SIZE = (2 * std::tan((fov * M_PI / 180) / 2)) / width;
+    // (X, Y) = top left corner coordinate
 	const float X = -(width * PIXEL_SIZE) / 2;
 	const float Y = (height * PIXEL_SIZE) / 2;
 	glm::vec3 origin(0, 0, 0);
