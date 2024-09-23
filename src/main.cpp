@@ -207,7 +207,24 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 				 
 	 ------------------------------------------------- */
 
+    // self-emitting intensity + ambient
+    color += material.ambient * ambient_light;
 
+    for (Light* light : lights) {
+        // diffuse
+        glm::vec3 light_direction = glm::normalize(light->position - point);
+        float cosOmega = glm::dot(normal, light_direction);
+        if (cosOmega > 0) {
+            color += material.diffuse * cosOmega * light->color;
+        }
+
+        // specular
+        glm::vec3 reflex_direction = glm::normalize(2.0f * normal * glm::dot(normal, light_direction) - light_direction);
+        float cosAlpha = glm::dot(view_direction, reflex_direction);
+        if (cosAlpha > 0) {
+            color += material.specular * glm::pow(cosAlpha, material.shininess) * light->color;
+        }
+    }
 	
 	// The final color has to be clamped so the values do not go beyond 0 and 1.
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
@@ -240,8 +257,8 @@ glm::vec3 trace_ray(Ray ray){
 		 Use the second line when you implement PhongModel function - Exercise 3
 					 
 		 ------------------------------------------------- */
-		color = closest_hit.object->color;
-		//color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
+		// color = closest_hit.object->color;
+        color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
 	}else{
 		color = glm::vec3(0.0, 0.0, 0.0);
 	}
