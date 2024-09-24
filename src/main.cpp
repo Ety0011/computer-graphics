@@ -305,27 +305,28 @@ void sceneDefinition (){
     blueMaterial.diffuse = glm::vec3(0.7f, 0.7f, 1.0f);
     blueMaterial.specular = glm::vec3(0.6f, 0.6f, 0.6f);
     blueMaterial.shininess = 100.0f;
+
+    Material redMaterial;
+    redMaterial.ambient = glm::vec3(0.01f, 0.03f, 0.03f);
+    redMaterial.diffuse = glm::vec3(1.0f, 0.3f, 0.3f);
+    redMaterial.specular = glm::vec3(0.5f, 0.5f, 0.5f);
+    redMaterial.shininess = 10.0f;
+
+    Material greenMaterial;
+    greenMaterial.ambient = glm::vec3(0.07f, 0.09f, 0.07f);
+    greenMaterial.diffuse = glm::vec3(0.7f, 0.9f, 0.7f);
+    greenMaterial.specular = glm::vec3(0.0f, 0.0f, 0.0f);
+    greenMaterial.shininess = 0.0f;
+
     objects.push_back(new Sphere(1.0f,
                                  glm::vec3(1.0f, -2.0f, 8.0f),
                                  blueMaterial));
-
-    Material redMaterial;
-    blueMaterial.ambient = glm::vec3(0.01f, 0.03f, 0.03f);
-    blueMaterial.diffuse = glm::vec3(1.0f, 0.3f, 0.3f);
-    blueMaterial.specular = glm::vec3(0.5f, 0.5f, 0.5f);
-    blueMaterial.shininess = 10.0f;
     objects.push_back(new Sphere(0.5f,
                                  glm::vec3(-1.0f, -2.5f, 6.0f),
-                                 blueMaterial));
-
-    Material greenMaterial;
-    blueMaterial.ambient = glm::vec3(0.07f, 0.09f, 0.07f);
-    blueMaterial.diffuse = glm::vec3(0.7f, 0.9f, 0.7f);
-    blueMaterial.specular = glm::vec3(0.0f, 0.0f, 0.0f);
-    blueMaterial.shininess = 0.0f;
-    objects.push_back(new Sphere(0.5f,
+                                 redMaterial));
+    objects.push_back(new Sphere(1.0f,
                                  glm::vec3(2.0f, -2.0f, 6.0f),
-                                 blueMaterial));
+                                 greenMaterial));
 
     lights.push_back(new Light(glm::vec3(0.0f, 26.0f, 5.0f), glm::vec3(0.4)));
     lights.push_back(new Light(glm::vec3(0.0f, 1.0f, 12.0f), glm::vec3(0.4)));
