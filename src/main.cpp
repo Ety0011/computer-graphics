@@ -185,7 +185,7 @@ public:
 };
 
 vector<Light *> lights; ///< A list of lights in the scene
-glm::vec3 ambient_light(0.1,0.1,0.1);
+glm::vec3 ambient_light(1.0);
 vector<Object *> objects; ///< A list of all objects in the scene
 
 
