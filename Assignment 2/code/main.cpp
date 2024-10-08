@@ -74,16 +74,11 @@ public:
 	/** Functions for setting up all the transformation matrices
 	@param matrix The matrix representing the transformation of the object in the global coordinates */
 	void setTransformation(glm::mat4 matrix){
-			
+
+        // TODO Exercise 2 - Set the two remaining matrices
 		transformationMatrix = matrix;
-			
-		/* ----- Exercise 2 ---------
-		Set the two remaining matrices
-			
-		inverseTransformationMatrix =
-		normalMatrix =
-			 
-		*/
+        inverseTransformationMatrix = glm::inverse(matrix);
+        normalMatrix = glm::transpose(inverseTransformationMatrix);
 
 	}
 };
