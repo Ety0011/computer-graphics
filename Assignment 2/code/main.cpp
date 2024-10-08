@@ -158,7 +158,8 @@ public:
 		
 		Hit hit;
         hit.hit = false;
-        glm::vec3 translated_point = point - ray.origin;
+        // TODO uncommenting this fucks base of cone
+        glm::vec3 translated_point = point; // - ray.origin;
 
         // TODO Exercise 1 - Plane-ray intersection
 
@@ -203,7 +204,7 @@ private:
 public:
 	Cone(Material material){
 		this->material = material;
-		plane = new Plane(glm::vec3(0,1,0), glm::vec3(0.0,1,0));
+		plane = new Plane(glm::vec3(0.0f,1.0f,0.0f), glm::vec3(0.0f,1.0f,0.0f), material);
 	}
 	Hit intersect(Ray ray){
 		
@@ -246,15 +247,26 @@ public:
 
         float intersectionFactor = (-b - sqrt(determinant)) / (2 * a);
         if (intersectionFactor < 0) {
-            intersectionFactor = (-b + sqrt(determinant)) / (2 * a);
-        }
-        if (intersectionFactor < 0) {
             return hit;
         }
 
         glm::vec4 tIntersectionPoint = tRayOrigin + intersectionFactor * tRayDirection;
 
-        if (tIntersectionPoint.y > 1 || tIntersectionPoint.y < 0) {
+        if (tIntersectionPoint.y < 0) {
+            return hit;
+        }
+
+        if (tIntersectionPoint.y > 1) {
+            Hit planeHit = plane->intersect(Ray(tRayOrigin, tRayDirection));
+            // Intersection occurs outside the base of the cone
+            if (pow(planeHit.intersection.x, 2.0f) + pow(planeHit.intersection.z, 2.0f) >= 1.0f) {
+                return hit;
+            }
+            hit.hit = true;
+            hit.intersection = transformationMatrix * glm::vec4(planeHit.intersection, tRayOrigin.w);
+            hit.normal = glm::normalize(inverseTransformationMatrix * glm::vec4(planeHit.normal, 0.0f));
+            hit.distance = glm::distance(ray.origin, hit.intersection);
+            hit.object = planeHit.object;
             return hit;
         }
 
@@ -262,7 +274,7 @@ public:
 
         hit.hit = true;
         hit.intersection = transformationMatrix * tIntersectionPoint;
-        hit.normal = glm::normalize(inverseTransformationMatrix * tNormal);
+        hit.normal = glm::normalize(normalMatrix * tNormal);
         hit.distance = glm::distance(ray.origin, hit.intersection);
         hit.object = this;
 
@@ -387,7 +399,7 @@ void sceneDefinition (){
 
     objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
-	objects.push_back(new Sphere(1.0, glm::vec3(2,-2,6), green_diffuse));
+	// objects.push_back(new Sphere(1.0, glm::vec3(2,-2,6), green_diffuse));
 		
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(0.4)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.4)));
@@ -400,12 +412,20 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(0, 0, -0.01),glm::vec3(0, 0, 1),green_diffuse));
     objects.push_back(new Plane(glm::vec3(0, 0, 30),glm::vec3(0, 0, 1),green_diffuse));
 
-    Cone* cone = new Cone(yellow_specular);
-    glm::mat4 translation = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 9.0f, 14.0f));
-    glm::mat4 scaling = glm::scale(glm::mat4(1.0f), glm::vec3(3.0f, 12.0f, 3.0f));
-    glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    cone->setTransformation(translation * scaling * rotation);
-    objects.push_back(cone);
+    Cone* yellowCone = new Cone(yellow_specular);
+    glm::mat4 yellowTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 9.0f, 14.0f));
+    glm::mat4 yellowScaling = glm::scale(glm::mat4(1.0f), glm::vec3(3.0f, 12.0f, 3.0f));
+    glm::mat4 yellowRotation = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    yellowCone->setTransformation(yellowTranslation * yellowScaling * yellowRotation);
+    objects.push_back(yellowCone);
+
+    Cone* greenCone = new Cone(green_diffuse);
+    glm::mat4 greenTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -3.0f, 7.0f));
+    glm::mat4 greenScaling = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 3.0f, 1.0f));
+    glm::mat4 greenRotation = glm::rotate(glm::mat4(1.0f), glm::radians(71.57f), glm::vec3(0.0f, 0.0f, 1.0f));
+    greenCone->setTransformation(greenRotation * greenTranslation * greenScaling);
+    objects.push_back(greenCone);
+    // TODO changing order of transformations fucks the cone
 
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
