@@ -173,10 +173,10 @@ public:
         // This dot product tells us the projection of the vector from the ray’s origin to the plane onto the normal
         // vector. In other words how far the ray's origin is from the plane in the direction of the plane's normal
         float distanceToPlane = glm::dot(normal, translated_point - ray.origin);
-        float intersectionPoint = distanceToPlane / alignmentToPlane;
+        float intersectionFactor = distanceToPlane / alignmentToPlane;
 
         // The intersection occurs behind the camera
-        if (intersectionPoint < 0) {
+        if (intersectionFactor < 0) {
             return hit;
         }
 
@@ -187,8 +187,8 @@ public:
         }
 
         hit.hit = true;
-        hit.intersection = ray.origin + intersectionPoint * ray.direction;
-        hit.normal = normal_facing_camera;
+        hit.intersection = ray.origin + intersectionFactor * ray.direction;
+        hit.normal = glm::normalize(normal_facing_camera);
         hit.distance = glm::distance(ray.origin, hit.intersection);
         hit.object = this;
 
@@ -209,30 +209,58 @@ public:
 		
 		Hit hit;
 		hit.hit = false;
-		
-	
+
+        // TODO Exercise 2
 		/*  ---- Exercise 2 -----
-		
-		 Implement the ray-cone intersection. Before intersecting the ray with the cone,
-		 make sure that you transform the ray into the local coordinate system.
-		 Remember about normalizing all the directions after transformations.
-		 
-		*/
-	
-		/* If the intersection is found, you have to set all the critical fields in the Hit structure
-		 Remember that the final information about intersection point, normal vector and distance have to be given
-		 in the global coordinate system.
-		 
-		hit.hit = true;
-		hit.object = this;
-		hit.intersection =
-		hit.normal =
-		hit.distance =
-		
-		 */
-		
-		
-		
+		 * Implement the ray-cone intersection. Before intersecting the ray with the cone,
+         * make sure that you transform the ray into the local coordinate system.
+         * Remember about normalizing all the directions after transformations.
+         *
+		 * If the intersection is found, you have to set all the critical fields in the Hit structure
+         * Remember that the final information about intersection point, normal vector and distance have to be given
+         * in the global coordinate system.
+         */
+
+        // t = transformed
+        glm::vec4 tRayOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
+        glm::vec4 tRayDirection = glm::normalize(inverseTransformationMatrix * glm::vec4(ray.direction, 0.0));
+
+        /* a * t^2 + b * t^2 + c = 0
+         * where
+         * a = dx^2 + dz^2 - dy^2
+         * b = 2(ox*dx + oz*dz - oy*dy)
+         * c = ox^2 + oz^2 - oy^2
+         *
+         * o = ray origin
+         * d = ray direction
+         */
+		float a = pow(tRayDirection.x, 2.0f) + pow(tRayDirection.z, 2.0f) - pow(tRayDirection.y, 2.0f);
+        float b = 2 * (tRayOrigin.x * tRayDirection.x + tRayOrigin.z * tRayDirection.z - tRayOrigin.y * tRayDirection.y);
+        float c = pow(tRayOrigin.x, 2.0f) + pow(tRayOrigin.z, 2.0f) - pow(tRayOrigin.y, 2.0f);
+        float determinant = pow(b, 2.0f) - 4.0f * a * c;
+
+        // Negative determinant means no solutions
+        if (determinant < 0) {
+            return hit;
+        }
+
+        float intersectionFactor = (-b - sqrt(determinant)) / (2 * a);
+        if (intersectionFactor < 0) {
+            intersectionFactor = (-b + sqrt(determinant)) / (2 * a);
+        }
+        if (intersectionFactor < 0) {
+            return hit;
+        }
+
+        glm::vec4 tIntersectionPoint = tRayOrigin + intersectionFactor * tRayDirection;
+        glm::vec4 tNormal = glm::vec4(tIntersectionPoint.x, -tIntersectionPoint.y, tIntersectionPoint.z, 0.0);
+
+        hit.hit = true;
+        hit.intersection = normalMatrix * tIntersectionPoint;
+        hit.normal = glm::normalize(inverseTransformationMatrix * tNormal);
+        hit.distance = glm::distance(ray.origin, hit.intersection);
+        hit.object = this;
+
 		return hit;
 	}
 };
@@ -356,10 +384,8 @@ void sceneDefinition (){
 
     objects.push_back(new Plane(glm::vec3(-15, 0, 0),glm::vec3(1, 0, 0),red_specular));
     objects.push_back(new Plane(glm::vec3(15, 0, 0),glm::vec3(1, 0, 0),red_specular));
-
     objects.push_back(new Plane(glm::vec3(0, -3, 0),glm::vec3(0, 1, 0),blue_specular));
     objects.push_back(new Plane(glm::vec3(0, 27, 0),glm::vec3(0, 1, 0),blue_specular));
-
     objects.push_back(new Plane(glm::vec3(0, 0, -0.01),glm::vec3(0, 0, 1),green_diffuse));
     objects.push_back(new Plane(glm::vec3(0, 0, 30),glm::vec3(0, 0, 1),green_diffuse));
 	
