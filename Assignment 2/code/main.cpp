@@ -23,7 +23,7 @@ public:
     glm::vec3 origin; ///< Origin of the ray
     glm::vec3 direction; ///< Direction of the ray
 	/**
-	 Contructor of the ray
+	 Constructor of the ray
 	 @param origin Origin of the ray
 	 @param direction Direction of the ray
 	 */
@@ -162,20 +162,41 @@ public:
 	Hit intersect(Ray ray){
 		
 		Hit hit;
-		hit.hit = false;
-		
-		/*
-		 
-		 
-		 
-		 Excercise 1 - Plane-ray intersection
-		 
-		 
-		 
-		 
-		 */
-		
-		
+        hit.hit = false;
+        glm::vec3 translated_point = point - ray.origin;
+
+        // TODO Exercise 1 - Plane-ray intersection
+
+        // This dot product tells us the relative alignment between the ray and the plane
+        float alignmentToPlane  = glm::dot(ray.direction, normal);
+
+        // The ray is parallel to the plane
+        if (alignmentToPlane == 0) {
+            return hit;
+        }
+
+        // This dot product tells us the projection of the vector from the ray’s origin to the plane onto the normal
+        // vector. In other words how far the ray's origin is from the plane in the direction of the plane's normal
+        float distanceToPlane = glm::dot(normal, translated_point - ray.origin);
+        float intersectionPoint = distanceToPlane / alignmentToPlane;
+
+        // The intersection occurs behind the camera
+        if (intersectionPoint < 0) {
+            return hit;
+        }
+
+        // Flip normal if its pointing away from camera
+        glm::vec3 normal_facing_camera = normal;
+        if (glm::dot(normal, ray.direction) > 0) {
+            normal_facing_camera *= -1;
+        }
+
+        hit.hit = true;
+        hit.intersection = ray.origin + intersectionPoint * ray.direction;
+        hit.normal = normal_facing_camera;
+        hit.distance = glm::distance(ray.origin, hit.intersection);
+        hit.object = this;
+
 		return hit;
 	}
 };
@@ -203,7 +224,7 @@ public:
 		 
 		*/
 	
-		/* If the intersection is found, you have to set all the critical fields in the Hit strucutre
+		/* If the intersection is found, you have to set all the critical fields in the Hit structure
 		 Remember that the final information about intersection point, normal vector and distance have to be given
 		 in the global coordinate system.
 		 
@@ -227,7 +248,7 @@ public:
 class Light{
 public:
 	glm::vec3 position; ///< Position of the light source
-	glm::vec3 color; ///< Color/intentisty of the light source
+	glm::vec3 color; ///< Color/intensity of the light source
 	Light(glm::vec3 position): position(position){
 		color = glm::vec3(1.0);
 	}
@@ -329,23 +350,30 @@ void sceneDefinition (){
 	blue_specular.diffuse = glm::vec3(0.7f, 0.7f, 1.0f);
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
-	
-	
-	objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
+
+    objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
 	objects.push_back(new Sphere(1.0, glm::vec3(2,-2,6), green_diffuse));
 		
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(0.4)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.4)));
 	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4)));
-	
+
+    objects.push_back(new Plane(glm::vec3(-15, 0, 0),glm::vec3(1, 0, 0),red_specular));
+    objects.push_back(new Plane(glm::vec3(15, 0, 0),glm::vec3(1, 0, 0),red_specular));
+
+    objects.push_back(new Plane(glm::vec3(0, -3, 0),glm::vec3(0, 1, 0),blue_specular));
+    objects.push_back(new Plane(glm::vec3(0, 27, 0),glm::vec3(0, 1, 0),blue_specular));
+
+    objects.push_back(new Plane(glm::vec3(0, 0, -0.01),glm::vec3(0, 0, 1),green_diffuse));
+    objects.push_back(new Plane(glm::vec3(0, 0, 30),glm::vec3(0, 0, 1),green_diffuse));
 	
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 
 	/*  ---- Exercise 3-----
 	
-	 Implement a tonemapping strategy and gamma correction for a correct display.
+	 Implement a tone mapping strategy and gamma correction for a correct display.
 	 
 	*/
 	
