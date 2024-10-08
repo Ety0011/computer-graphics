@@ -253,10 +253,15 @@ public:
         }
 
         glm::vec4 tIntersectionPoint = tRayOrigin + intersectionFactor * tRayDirection;
+
+        if (tIntersectionPoint.y > 1 || tIntersectionPoint.y < 0) {
+            return hit;
+        }
+
         glm::vec4 tNormal = glm::vec4(tIntersectionPoint.x, -tIntersectionPoint.y, tIntersectionPoint.z, 0.0);
 
         hit.hit = true;
-        hit.intersection = normalMatrix * tIntersectionPoint;
+        hit.intersection = transformationMatrix * tIntersectionPoint;
         hit.normal = glm::normalize(inverseTransformationMatrix * tNormal);
         hit.distance = glm::distance(ray.origin, hit.intersection);
         hit.object = this;
@@ -374,6 +379,12 @@ void sceneDefinition (){
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
 
+    Material yellow_specular;
+    yellow_specular.ambient = glm::vec3(1.0f, 1.0f, 0.0f);
+    yellow_specular.diffuse = glm::vec3(1.0f, 1.0f, 0.0f);
+    yellow_specular.specular = glm::vec3(0.6);
+    yellow_specular.shininess = 100.0;
+
     objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
 	objects.push_back(new Sphere(1.0, glm::vec3(2,-2,6), green_diffuse));
@@ -388,7 +399,14 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(0, 27, 0),glm::vec3(0, 1, 0),blue_specular));
     objects.push_back(new Plane(glm::vec3(0, 0, -0.01),glm::vec3(0, 0, 1),green_diffuse));
     objects.push_back(new Plane(glm::vec3(0, 0, 30),glm::vec3(0, 0, 1),green_diffuse));
-	
+
+    Cone* cone = new Cone(yellow_specular);
+    glm::mat4 translation = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 9.0f, 14.0f));
+    glm::mat4 scaling = glm::scale(glm::mat4(1.0f), glm::vec3(3.0f, 12.0f, 3.0f));
+    glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    cone->setTransformation(translation * scaling * rotation);
+    objects.push_back(cone);
+
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 
