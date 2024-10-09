@@ -265,13 +265,13 @@ public:
             }
             hit.hit = true;
             hit.intersection = glm::vec3(transformationMatrix * glm::vec4(planeHit.intersection, 1.0f));
-            hit.normal = glm::normalize(glm::vec3(normalMatrix * glm::vec4(planeHit.normal, 0.0f)));
+            hit.normal = glm::normalize(glm::vec3(normalMatrix * glm::vec4(planeHit.normal, 1.0f)));
             hit.distance = glm::distance(ray.origin, hit.intersection);
             hit.object = this;
             return hit;
         }
 
-        glm::vec4 tNormal = glm::vec4(tIntersectionPoint.x, -tIntersectionPoint.y, tIntersectionPoint.z, 0.0);
+        glm::vec4 tNormal = glm::vec4(tIntersectionPoint.x, -tIntersectionPoint.y, tIntersectionPoint.z, 1.0f);
 
         hit.hit = true;
         hit.intersection = glm::vec3(transformationMatrix * tIntersectionPoint);
@@ -311,17 +311,16 @@ vector<Object *> objects; ///< A list of all objects in the scene
 glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material){
 
 	glm::vec3 color(0.0);
-	for(int light_num = 0; light_num < lights.size(); light_num++){
+	for(Light* light : lights){
 
-		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
+		glm::vec3 light_direction = glm::normalize(light->position - point);
 		glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
 
-		float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
-		float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
+		float cosOmega = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
+		float cosAlpha = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
 
-		glm::vec3 diffuse_color = material.diffuse;
-		glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
-		glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
+		glm::vec3 diffuse = material.diffuse * glm::vec3(cosOmega);
+		glm::vec3 specular = material.specular * glm::vec3(pow(cosAlpha, material.shininess));
 
         // TODO Exercise 3
 		/*  ---- Exercise 3-----
@@ -330,9 +329,9 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 		 
 		*/
 
-        float lightDistance = glm::distance(lights[light_num]->position, point);
+        float lightDistance = glm::distance(light->position, point);
         float minimumDistance = 0.5f;
-		color += lights[light_num]->color * (diffuse + specular) / pow(max(lightDistance, minimumDistance), 2.0f);
+		color += light->color * (diffuse + specular) / pow(max(lightDistance, minimumDistance), 2.0f);
 		
 	
 	}
