@@ -439,6 +439,20 @@ glm::vec3 toneMapping(glm::vec3 intensity){
 	 Implement a tone mapping strategy and gamma correction for a correct display.
 	 
 	*/
+    float I_max = 1.0f;
+    float c = 1.0f;
+
+    intensity = glm::vec3(
+            log(c * intensity.r + 1.0f) / log(I_max + 1.0f),
+            log(c * intensity.g + 1.0f) / log(I_max + 1.0f),
+            log(c * intensity.b + 1.0f) / log(I_max + 1.0f)
+    );
+
+    float gamma = 2.2f;
+    intensity = glm::vec3(
+            pow(intensity.r, 1.0f / gamma),
+            pow(intensity.g, 1.0f / gamma),
+            pow(intensity.b, 1.0f / gamma));
 	
 	return intensity;
 }
