@@ -322,14 +322,17 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 		glm::vec3 diffuse_color = material.diffuse;
 		glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
 		glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
-		
+
+        // TODO Exercise 3
 		/*  ---- Exercise 3-----
 		
 		 Include light attenuation due to the distance to the light source.
 		 
 		*/
-		
-		color += lights[light_num]->color * (diffuse + specular);
+
+        float lightDistance = glm::distance(lights[light_num]->position, point);
+        float minimumDistance = 0.5f;
+		color += lights[light_num]->color * (diffuse + specular) / pow(max(lightDistance, minimumDistance), 2.0f);
 		
 	
 	}
