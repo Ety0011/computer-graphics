@@ -205,7 +205,7 @@ private:
 public:
 	Cone(Material material){
 		this->material = material;
-		plane = new Plane(glm::vec3(0.0f,1.0f,0.0f), glm::vec3(0.0f,1.0f,0.0f), material);
+		plane = new Plane(glm::vec3(0.0f,1.0f,0.0f), glm::vec3(0.0f,1.0f,0.0f));
 	}
 	Hit intersect(Ray ray){
 		
@@ -260,7 +260,7 @@ public:
         if (tIntersectionPoint.y > 1) {
             Hit planeHit = plane->intersect(Ray(tRayOrigin, tRayDirection));
             // Intersection occurs outside the base of the cone
-            if (pow(planeHit.intersection.x, 2.0f) + pow(planeHit.intersection.z, 2.0f) >= 1.0f) {
+            if (!planeHit.hit || pow(planeHit.intersection.x, 2.0f) + pow(planeHit.intersection.z, 2.0f) >= 1.0f) {
                 return hit;
             }
             hit.hit = true;
