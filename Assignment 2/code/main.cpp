@@ -396,10 +396,16 @@ void sceneDefinition (){
 	blue_specular.shininess = 100.0;
 
     Material yellow_specular;
-    yellow_specular.ambient = glm::vec3(1.0f, 1.0f, 0.0f);
-    yellow_specular.diffuse = glm::vec3(1.0f, 1.0f, 0.0f);
-    yellow_specular.specular = glm::vec3(0.6);
-    yellow_specular.shininess = 100.0;
+    yellow_specular.ambient = glm::vec3(0.7f, 0.7f, 0.3f);
+    yellow_specular.diffuse = glm::vec3(0.7f, 0.7f, 0.3f);
+    yellow_specular.specular = glm::vec3(0.5);
+    yellow_specular.shininess = 10.0;
+
+    Material white_specular;
+    white_specular.ambient = glm::vec3(1.0f, 1.0f, 1.0f);
+    white_specular.diffuse = glm::vec3(1.0f, 1.0f, 1.0f);
+    white_specular.specular = glm::vec3(0.6);
+    white_specular.shininess = 100.0;
 
     objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
@@ -410,8 +416,8 @@ void sceneDefinition (){
 	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4)));
 
     objects.push_back(new Plane(glm::vec3(-15, 0, 0),glm::vec3(1, 0, 0),red_specular));
-    objects.push_back(new Plane(glm::vec3(15, 0, 0),glm::vec3(1, 0, 0),red_specular));
-    objects.push_back(new Plane(glm::vec3(0, -3, 0),glm::vec3(0, 1, 0),blue_specular));
+    objects.push_back(new Plane(glm::vec3(15, 0, 0),glm::vec3(1, 0, 0),blue_specular));
+    objects.push_back(new Plane(glm::vec3(0, -3, 0),glm::vec3(0, 1, 0),white_specular));
     objects.push_back(new Plane(glm::vec3(0, 27, 0),glm::vec3(0, 1, 0),blue_specular));
     objects.push_back(new Plane(glm::vec3(0, 0, -0.01),glm::vec3(0, 0, 1),green_diffuse));
     objects.push_back(new Plane(glm::vec3(0, 0, 30),glm::vec3(0, 0, 1),green_diffuse));
