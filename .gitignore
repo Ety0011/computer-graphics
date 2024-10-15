@@ -32,6 +32,6 @@
 *.app
 
 # Ety
-.idea
-cmake-build-debug
+.vscode
+build
 CMakeLists.txt
