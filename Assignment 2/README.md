@@ -6,9 +6,9 @@
 
 This submission includes solutions to the following exercises:
 
-- **Exercise 1:** ray-plane intersection.
-- **Exercise 2:** ray-cone intersection and adding the base of the cone.
-- **Exercise 3:** light attenuation and tone mapping.
+- **Exercise 1:** Ray-Plane Intersection.
+- **Exercise 2:** Ray-Cone Intersection.
+- **Exercise 3:** Light Attenuation and Tone Mapping.
 
 ## Encountered Problems
 
