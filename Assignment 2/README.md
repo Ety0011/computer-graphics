@@ -24,7 +24,7 @@ This submission includes solutions to the following exercises:
 ```
 
 - **Exercise 2**: Ray-Cone Intersection  
-  This was by far the hardest exercise due to the numerous checks needed for proper handling of intersections. We struggled the most when adding the disk that closes cone because at some point we had huge black artifacts appearing on the scene. These artifacts were caused by an oversight in the code where we failed to check if the `planeHit.hit` value was actually `true` when returning `hit`:
+  This was by far the hardest exercise due to the numerous checks needed for proper handling of intersections. We struggled the most when adding the disk that closes the cone because at some point we had huge black artifacts appearing on the scene. These artifacts were caused by an oversight in the code where we failed to check if the `planeHit.hit` value was actually `true` when returning `hit`:
 
 ```cpp
     if (tIntersectionPoint.y > 1) {
@@ -39,4 +39,4 @@ This submission includes solutions to the following exercises:
 ```
 
 - **Exercise 3**: Light Attenuation and Tone Mapping  
-  This was the easiest exercise to implement, but it turned out to be the hardest to configure. Initially, when all the material and lighting values were misconfigured, the rendered image was so dark that we thought we had made a mistake in the implementation. It took a lot of fine-tuning of parameters to get the lighting to look correct. This tuning process wasn't ideal, as it required a lot of trial and error and made the task feel more tedious than expected.
+  This was the easiest exercise to implement but it turned out to be the longest to do because it was hard to configure. Initially, when all the material and lighting values were misconfigured, the rendered image was so dark that we thought we had made a mistake in the implementation. It took a lot of fine-tuning of parameters to get the lighting to look correct. This tuning process wasn't ideal, as it required a lot of trial and error and was very time consuming.
