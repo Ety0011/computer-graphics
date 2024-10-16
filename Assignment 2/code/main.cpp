@@ -265,13 +265,13 @@ public:
             }
             hit.hit = true;
             hit.intersection = glm::vec3(transformationMatrix * glm::vec4(planeHit.intersection, 1.0f));
-            hit.normal = glm::normalize(glm::vec3(normalMatrix * glm::vec4(planeHit.normal, 1.0f)));
+            hit.normal = glm::normalize(glm::vec3(normalMatrix * glm::vec4(planeHit.normal, 0.0f)));
             hit.distance = glm::distance(ray.origin, hit.intersection);
             hit.object = this;
             return hit;
         }
 
-        glm::vec4 tNormal = glm::vec4(tIntersectionPoint.x, -tIntersectionPoint.y, tIntersectionPoint.z, 1.0f);
+        glm::vec4 tNormal = glm::vec4(tIntersectionPoint.x, -tIntersectionPoint.y, tIntersectionPoint.z, 0.0f);
 
         hit.hit = true;
         hit.intersection = glm::vec3(transformationMatrix * tIntersectionPoint);
