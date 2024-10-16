@@ -158,9 +158,6 @@ public:
 		
 		Hit hit;
         hit.hit = false;
-        // TODO uncommenting this fucks base of cone
-        // works when used in global coordinate systems but not when in local cone coordinates
-        glm::vec3 translated_point = point; // - ray.origin;
 
         // TODO Exercise 1 - Plane-ray intersection
 
@@ -174,7 +171,7 @@ public:
 
         // This dot product tells us the projection of the vector from the ray’s origin to the plane onto the normal
         // vector. In other words how far the ray's origin is from the plane in the direction of the plane's normal
-        float distanceToPlane = glm::dot(normal, translated_point - ray.origin);
+        float distanceToPlane = glm::dot(normal, point - ray.origin);
         float intersectionFactor = distanceToPlane / alignmentToPlane;
 
         // The intersection occurs behind the camera
