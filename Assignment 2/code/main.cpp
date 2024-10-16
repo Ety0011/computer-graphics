@@ -330,7 +330,7 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 		*/
 
         float lightDistance = glm::distance(light->position, point);
-        float alpha1 = 0.1f;
+        float alpha1 = 0.01f;
         float alpha2 = 0.01f;
         float alpha3 = 0.01f;
 		color += light->color * (diffuse + specular) / (alpha1 + alpha2 * lightDistance + alpha3 * pow(lightDistance, 2.0f));
@@ -402,7 +402,7 @@ void sceneDefinition (){
 
     Material yellow_specular;
     yellow_specular.ambient = glm::vec3(0.3f, 0.3f, 0.0f);
-    yellow_specular.diffuse = glm::vec3(0.2f, 0.2f, 0.0f);
+    yellow_specular.diffuse = glm::vec3(0.1f, 0.1f, 0.0f);
     yellow_specular.specular = glm::vec3(0.6);
     yellow_specular.shininess = 100.0;
 
