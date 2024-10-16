@@ -298,7 +298,7 @@ public:
 };
 
 vector<Light *> lights; ///< A list of lights in the scene
-glm::vec3 ambient_light(0.07,0.07,0.07);
+glm::vec3 ambient_light(0.1,0.1,0.1);
 vector<Object *> objects; ///< A list of all objects in the scene
 
 
@@ -330,9 +330,9 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 		*/
 
         float lightDistance = glm::distance(light->position, point);
-        float alpha1 = 1.0f;
-        float alpha2 = 0.5f;
-        float alpha3 = 0.001f;
+        float alpha1 = 0.1f;
+        float alpha2 = 0.01f;
+        float alpha3 = 0.01f;
 		color += light->color * (diffuse + specular) / (alpha1 + alpha2 * lightDistance + alpha3 * pow(lightDistance, 2.0f));
         // float minimumDistance = 0.5f;
         // color += light->color * (diffuse + specular) / pow(max(lightDistance, minimumDistance), 2.0f);
@@ -385,40 +385,40 @@ void sceneDefinition (){
 	*/
 	
 	Material green_diffuse;
-	green_diffuse.ambient = glm::vec3(0.1f, 0.2f, 0.1f);
-	green_diffuse.diffuse = glm::vec3(0.1f, 0.2f, 0.1f);
+	green_diffuse.ambient = glm::vec3(0.1f, 0.3f, 0.1f);
+	green_diffuse.diffuse = glm::vec3(0.1f, 0.3f, 0.1f);
 
 	Material red_specular;
-	red_specular.ambient = glm::vec3(0.3f, 0.1f, 0.1f);
-	red_specular.diffuse = glm::vec3(0.3f, 0.1f, 0.1f);
+	red_specular.ambient = glm::vec3(0.6f, 0.1f, 0.1f);
+	red_specular.diffuse = glm::vec3(0.6f, 0.1f, 0.1f);
 	red_specular.specular = glm::vec3(0.5);
 	red_specular.shininess = 10.0;
 
 	Material blue_specular;
-	blue_specular.ambient = glm::vec3(0.1f, 0.1f, 0.2f);
-	blue_specular.diffuse = glm::vec3(0.1f, 0.1f, 0.2f);
+	blue_specular.ambient = glm::vec3(0.1f, 0.1f, 0.6f);
+	blue_specular.diffuse = glm::vec3(0.1f, 0.1f, 0.6f);
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
 
     Material yellow_specular;
-    yellow_specular.ambient = glm::vec3(0.2f, 0.2f, 0.1f);
-    yellow_specular.diffuse = glm::vec3(0.2f, 0.2f, 0.1f);
-    yellow_specular.specular = glm::vec3(0.9);
+    yellow_specular.ambient = glm::vec3(0.3f, 0.3f, 0.0f);
+    yellow_specular.diffuse = glm::vec3(0.2f, 0.2f, 0.0f);
+    yellow_specular.specular = glm::vec3(0.6);
     yellow_specular.shininess = 100.0;
 
     Material white_specular;
     white_specular.ambient = glm::vec3(0.3f, 0.3f, 0.3f);
     white_specular.diffuse = glm::vec3(0.3f, 0.3f, 0.3f);
-    white_specular.specular = glm::vec3(0.6);
-    white_specular.shininess = 100.0;
+    // white_specular.specular = glm::vec3(0.6);
+    // white_specular.shininess = 100.0;
 
     objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
 	// objects.push_back(new Sphere(1.0, glm::vec3(2,-2,6), green_diffuse));
 		
-	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0)));
+	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(0.8)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.8)));
-	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(1.0)));
+	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.8)));
 
     objects.push_back(new Plane(glm::vec3(-15, 0, 0),glm::vec3(1, 0, 0),red_specular));
     objects.push_back(new Plane(glm::vec3(15, 0, 0),glm::vec3(1, 0, 0),blue_specular));
@@ -458,7 +458,7 @@ glm::vec3 toneMapping(glm::vec3 intensity){
             log(c * intensity.b + 1.0f) / log(I_max + 1.0f)
     );
 
-    float gamma = 2.2f;
+    float gamma = 2.0f;
     intensity = glm::vec3(
             pow(intensity.r, 1.0f / gamma),
             pow(intensity.g, 1.0f / gamma),
