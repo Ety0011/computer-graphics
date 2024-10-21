@@ -34,5 +34,3 @@
 # Ety
 .vscode
 build
-CMakeLists.txt
-CMakePresets.json
