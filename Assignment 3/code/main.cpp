@@ -3,6 +3,7 @@
 */
 
 #include <iostream>
+#include <sstream>
 #include <fstream>
 #include <cmath>
 #include <ctime>
@@ -302,6 +303,69 @@ public:
 		
 		return hit;
 	}
+};
+
+struct Face {
+    vector<int> vertices;
+    vector<int> normals;
+};
+
+class Mesh : public Object {
+private:
+	vector<glm::vec3> vertices;
+    vector<glm::vec3> normals;
+    vector<Face> faces;
+
+public:
+	Mesh(Material material){
+		this->material = material;
+	}
+    bool loadFromFile(const string& filename) {
+        ifstream file(filename);
+        if (!file.is_open()) {
+            cerr << "Failed to open file: " << filename << endl;
+            return false;
+        }
+
+        string line;
+        while (getline(file, line)) {
+            istringstream lineStream(line);
+            string prefix;
+            lineStream >> prefix;
+
+            if (prefix == "v") {
+                float x, y, z;
+                lineStream >> x >> y >> z;
+                vertices.emplace_back(x, y, z);
+
+            } else if (prefix == "vn") {
+                float nx, ny, nz;
+                lineStream >> nx >> ny >> nz;
+                normals.emplace_back(nx, ny, nz);
+
+            } else if (prefix == "f") {
+                Face face;
+                string indexPair;
+
+                while (lineStream >> indexPair) {
+                    istringstream indexStream(indexPair);
+					int v, vn;
+
+					indexStream >> v;
+					face.vertices.push_back(v - 1);
+
+					if (indexStream.peek() == '/') {
+						indexStream.ignore(2);
+						indexStream >> vn;
+						face.normals.push_back(vn - 1);
+					}
+                }
+                faces.push_back(face);
+            }
+        }
+        file.close();
+        return true;
+    }
 };
 
 /**
