@@ -241,6 +241,69 @@ public:
 	}
 };
 
+class Triangle : public Object{
+private:
+	Plane *plane;
+	glm::vec3 p1;
+	glm::vec3 p2;
+	glm::vec3 p3;
+	
+public:
+	Triangle(Material material){
+		this->material = material;
+		plane = new Plane(glm::vec3(0,1,0), glm::vec3(0,1,0));
+		p1 = glm::vec3(-1, -1, 0);
+		p2 = glm::vec3(1, -1, 0);
+		p3 = glm::vec3(0, 1, 0);
+	}
+	Hit intersect(Ray ray){
+		
+		Hit hit;
+		hit.hit = false;
+		
+		glm::vec3 tOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
+		glm::vec3 tDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
+		tDirection = glm::normalize(tDirection);
+		
+		Hit hitPlane = plane->intersect(Ray(tOrigin, tDirection));
+		if(!hitPlane.hit) {
+			return hit;
+		}
+		hit.intersection = hitPlane.intersection;
+		hit.normal = hitPlane.normal;
+
+		glm::vec3 p = hit.intersection;
+		glm::vec3 N = glm::cross(p2 - p1, p3 - p1);
+		glm::vec3 n1 = glm::cross(p2 - p, p3 - p);
+		glm::vec3 n2 = glm::cross(p3 - p, p1 - p);
+		glm::vec3 n3 = glm::cross(p1 - p, p2 - p);
+
+		float sign1 = glm::dot(n1, N);
+		if (sign1 < 0) {
+			return hit;
+		}
+
+		float sign2 = glm::dot(n2, N);
+		if (sign2 < 0) {
+			return hit;
+		}
+
+		float sign3 = glm::dot(n3 ,N);
+		if (sign2 < 0) {
+			return hit;
+		}
+		
+		hit.hit = true;
+		hit.object = this;
+		hit.intersection = transformationMatrix * glm::vec4(hit.intersection, 1.0);
+		hit.normal = (normalMatrix * glm::vec4(hit.normal, 0.0));
+		hit.normal = glm::normalize(hit.normal);
+		hit.distance = glm::length(hit.intersection - ray.origin);
+		
+		return hit;
+	}
+};
+
 /**
  Light class
  */
