@@ -251,10 +251,10 @@ private:
 public:
 	Triangle(Material material){
 		this->material = material;
-		plane = new Plane(glm::vec3(0,1,0), glm::vec3(0,1,0));
-		p1 = glm::vec3(-1, -1, 0);
-		p2 = glm::vec3(1, -1, 0);
-		p3 = glm::vec3(0, 1, 0);
+		plane = new Plane(glm::vec3(0,0,0), glm::vec3(0,0,-1));
+		p1 = glm::vec3(-0.5, -0.5, 0);
+		p2 = glm::vec3(0.5, -0.5, 0);
+		p3 = glm::vec3(0, 0.5, 0);
 	}
 	Hit intersect(Ray ray){
 		
@@ -289,7 +289,7 @@ public:
 		}
 
 		float sign3 = glm::dot(n3 ,N);
-		if (sign2 < 0) {
+		if (sign3 < 0) {
 			return hit;
 		}
 		
@@ -464,6 +464,13 @@ void sceneDefinition (){
 	cone2->setTransformation(translationMatrix* rotationMatrix*scalingMatrix);
 	objects.push_back(cone2);
 	
+	// Triangles
+	Triangle *triangle = new Triangle(green_diffuse);
+	translationMatrix = glm::translate(glm::vec3(-4,-2,7));
+	scalingMatrix = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+	rotationMatrix = glm::rotate(0.0f, glm::vec3(0,0,1));
+	triangle->setTransformation(translationMatrix* rotationMatrix*scalingMatrix);
+	objects.push_back(triangle);
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 	float gamma = 1.0/2.0;
