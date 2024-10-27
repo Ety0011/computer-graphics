@@ -249,6 +249,7 @@ private:
 	Plane *plane;
 	array<glm::vec3, 3> vertices;
 	array<glm::vec3, 3> normals;
+	bool smoothSmoothing;
 
 public:
 	Triangle(Material material){
@@ -257,16 +258,19 @@ public:
 		vertices[0] = glm::vec3(-0.5, -0.5, 0);
 		vertices[1] = glm::vec3(0.5, -0.5, 0);
 		vertices[2] = glm::vec3(0, 0.5, 0);
+		smoothSmoothing = false;
 	}
 	Triangle(array<glm::vec3, 3> vertices, Material material) : vertices(vertices) {
 		this->material = material;
 		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
 		plane = new Plane(vertices[0], normal);
+		smoothSmoothing = false;
 	}
 	Triangle(array<glm::vec3, 3> vertices, array<glm::vec3, 3> normals, Material material) : vertices(vertices), normals(normals) {
 		this->material = material;
 		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
 		plane = new Plane(vertices[0], normal);
+		smoothSmoothing = true;
 	}
 	Hit intersect(Ray ray){
 		
@@ -288,15 +292,30 @@ public:
 		array<glm::vec3, 3> ns;
 
 		glm::vec3 N = glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]);
-		for (int i = 0; i < ns.size(); i++) {
-			ns[i] = glm::cross(vertices[i] - p, vertices[(i + 1) % ns.size()] - p);
+		for (int i = 0; i < 3; i++) {
+			ns[i] = glm::cross(vertices[i] - p, vertices[(i + 1) % 3] - p);
 		}
 
-		for (int i = 0; i < ns.size(); i++) {
-			float sign = glm::dot(ns[i], N);
+		array<float, 3> signes;
+		for (int i = 0; i < 3; i++) {
+			float sign = glm::dot(N, ns[i]);
 			if (sign < 0) {
 				return hit;
 			}
+			signes[i] = sign;
+		}
+
+		array<float, 3> barycentrics;
+		for (int i = 0; i < 3; i++) {
+			barycentrics[i] = signes[i] / pow(glm::length(N), 2);
+		}
+
+		if (smoothSmoothing) {
+			hit.normal = glm::normalize(
+				barycentrics[0] * normals[0] +
+				barycentrics[1] * normals[1] +
+				barycentrics[2] * normals[2]
+			);
 		}
 		
 		hit.hit = true;
