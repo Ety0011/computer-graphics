@@ -259,6 +259,11 @@ public:
 		p2 = glm::vec3(0.5, -0.5, 0);
 		p3 = glm::vec3(0, 0.5, 0);
 	}
+	Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, Material material) : p1(p1), p2(p2), p3(p3) {
+		this->material = material;
+		glm::vec3 normal = glm::normalize(glm::cross(p2 - p1, p3 - p1));
+		plane = new Plane(p1, normal);
+	}
 	Hit intersect(Ray ray){
 		
 		Hit hit;
@@ -317,14 +322,25 @@ private:
 	vector<glm::vec3> vertices;
     vector<glm::vec3> normals;
     vector<Face> faces;
-  vector<Triangle*> triangles;
+  	vector<Triangle> triangles;
 
 public:
+	Mesh(Material material) {
+		this->material = material;
+		Triangle triangle(material);
+		triangles.push_back(triangle);
+	}
 	Mesh(const string& filename, Material material){
 		if (!loadFromFile(filename)) {
             throw std::runtime_error("Failed to load mesh from file: " + filename);
         }
 		this->material = material;
+	}
+
+	void setTransformationTriangles(glm::mat4 matrix){
+		for (auto &triangle : triangles) {
+			triangle.setTransformation(matrix);
+		}
 	}
 
     bool loadFromFile(const string& filename) {
@@ -383,14 +399,7 @@ public:
           glm::vec3 v1 = vertices[v1_index];
           glm::vec3 v2 = vertices[v2_index];
 
-          Triangle* triangle = new Triangle(this->material);
-
-          // Assuming p1, p2, p3 are accessible in Triangle
-          triangle->p1 = v0;
-          triangle->p2 = v1;
-          triangle->p3 = v2;
-
-          triangle->setTransformation(this->transformationMatrix);
+          Triangle triangle = Triangle(v0, v1, v2, this->material);
 
           triangles.push_back(triangle);
         }
@@ -405,14 +414,15 @@ public:
     closest_hit.hit = false;
     closest_hit.distance = INFINITY;
 
-    glm::vec3 transformedOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
-    glm::vec3 transformedDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
-    transformedDirection = glm::normalize(transformedDirection);
+    // glm::vec3 transformedOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
+    // glm::vec3 transformedDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
+    // transformedDirection = glm::normalize(transformedDirection);
 
-    Ray transformedRay(transformedOrigin, transformedDirection);
+    // Ray transformedRay(transformedOrigin, transformedDirection);
 
     for (auto triangle : triangles) {
-      Hit hit = triangle->intersect(transformedRay);
+
+      Hit hit = triangle.intersect(ray);
       if (hit.hit && hit.distance < closest_hit.distance) {
         closest_hit = hit;
         closest_hit.object = this;
@@ -528,7 +538,6 @@ void sceneDefinition (){
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
 	
-	
 	//Material green_diffuse;
 	green_diffuse.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
 	green_diffuse.diffuse = glm::vec3(0.3f, 1.0f, 0.3f);
@@ -545,23 +554,33 @@ void sceneDefinition (){
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
 
-  // Define material for the mesh
-Material mesh_material;
-mesh_material.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
-mesh_material.diffuse = glm::vec3(0.6f, 0.7f, 0.8f);
-mesh_material.specular = glm::vec3(0.9f);
-mesh_material.shininess = 50.0f;
+  	// Define material for the mesh
+	Material mesh_material;
+	mesh_material.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+	mesh_material.diffuse = glm::vec3(0.6f, 0.7f, 0.8f);
+	mesh_material.specular = glm::vec3(0.9f);
+	mesh_material.shininess = 50.0f;
 
-// Create the mesh object
-Mesh *mesh = new Mesh("/home/leonardo/dev/Uni/computer-graphics/Assignment 3/code/meshes/bunny.obj", mesh_material);
+	// Create the mesh object
+	Mesh *mesh = new Mesh("C:\\Users\\Etienne\\Documents\\_Documents\\Projects\\computer-graphics\\Assignment 3\\code\\meshes\\bunny.obj", mesh_material);
+	// Mesh *mesh = new Mesh(mesh_material);
 
-// Apply transformations if necessary
-glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.0f, 5.0f));
-glm::mat4 scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
-mesh->setTransformation(translation * scaling);
+	// Apply transformations if necessary
+	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.0f, 5.0f));
+	glm::mat4 scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+	mesh->setTransformation(translation * scaling);
+	mesh->setTransformationTriangles(translation * scaling);
 
-// Add the mesh to the objects list
-objects.push_back(mesh);
+	// Add the mesh to the objects list
+	objects.push_back(mesh);
+
+	// Triangles
+	Triangle *triangle = new Triangle(green_diffuse);
+	glm::mat4 translationMatrix = glm::translate(glm::vec3(4,0,7));
+	glm::mat4 scalingMatrix = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+	glm::mat4 rotationMatrix = glm::rotate(0.0f, glm::vec3(0,0,1));
+	triangle->setTransformation(translationMatrix* rotationMatrix*scalingMatrix);
+	objects.push_back(triangle);
 
 	
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
@@ -581,9 +600,6 @@ objects.push_back(mesh);
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
-	
-	
-	
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 	float gamma = 1.0/2.0;
