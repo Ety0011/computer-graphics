@@ -382,8 +382,7 @@ public:
     tDirection = glm::normalize(tDirection);
 
     for (const auto& face : faces) {
-      if (face.vertices.size() >= 3) {
-        for (size_t i = i; i + 1 < face.vertices.size(); i++) {
+        for (size_t i = 1; i + 1 < face.vertices.size(); i++) {
           int v0_index = face.vertices[0];
           int v1_index = face.vertices[i];
           int v2_index = face.vertices[i+1];
@@ -437,7 +436,6 @@ public:
               closest_hit.object = this;
             }
           }
-        }
       }
     }
 
