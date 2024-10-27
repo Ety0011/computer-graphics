@@ -317,9 +317,13 @@ private:
     vector<Face> faces;
 
 public:
-	Mesh(Material material){
+	Mesh(const string& filename, Material material){
+		if (!loadFromFile(filename)) {
+            throw std::runtime_error("Failed to load mesh from file: " + filename);
+        }
 		this->material = material;
 	}
+
     bool loadFromFile(const string& filename) {
         ifstream file(filename);
         if (!file.is_open()) {
