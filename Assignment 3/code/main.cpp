@@ -246,11 +246,12 @@ public:
 class Triangle : public Object{
 private:
 	Plane *plane;
+	
+public:
 	glm::vec3 p1;
 	glm::vec3 p2;
 	glm::vec3 p3;
-	
-public:
+
 	Triangle(Material material){
 		this->material = material;
 		plane = new Plane(glm::vec3(0,0,0), glm::vec3(0,0,-1));
@@ -316,6 +317,7 @@ private:
 	vector<glm::vec3> vertices;
     vector<glm::vec3> normals;
     vector<Face> faces;
+  vector<Triangle*> triangles;
 
 public:
 	Mesh(const string& filename, Material material){
@@ -354,88 +356,66 @@ public:
 
                 while (lineStream >> indexPair) {
                     istringstream indexStream(indexPair);
-					int v, vn;
+          int v, vn;
 
-					indexStream >> v;
-					face.vertices.push_back(v - 1);
+          indexStream >> v;
+          face.vertices.push_back(v - 1);
 
-					if (indexStream.peek() == '/') {
-						indexStream.ignore(2);
-						indexStream >> vn;
-						face.normals.push_back(vn - 1);
-					}
-                }
-                faces.push_back(face);
-            }
+          if (indexStream.peek() == '/') {
+            indexStream.ignore(2);
+            indexStream >> vn;
+            face.normals.push_back(vn - 1);
+          }
         }
-        file.close();
-        return true;
+        faces.push_back(face);
+      }
     }
+    file.close();
+
+    for (const auto& face : faces) {
+      if (face.vertices.size() >= 3) {
+        for (size_t i = 1; i + 1 <= face.vertices.size(); i++) {
+          int v0_index = face.vertices[0];
+          int v1_index = face.vertices[i - 1];
+          int v2_index = face.vertices[i % face.vertices.size()];
+
+          glm::vec3 v0 = vertices[v0_index];
+          glm::vec3 v1 = vertices[v1_index];
+          glm::vec3 v2 = vertices[v2_index];
+
+          Triangle* triangle = new Triangle(this->material);
+
+          // Assuming p1, p2, p3 are accessible in Triangle
+          triangle->p1 = v0;
+          triangle->p2 = v1;
+          triangle->p3 = v2;
+
+          triangle->setTransformation(this->transformationMatrix);
+
+          triangles.push_back(triangle);
+        }
+      }
+    }
+
+    return true;
+  }
 
   Hit intersect(Ray ray) {
     Hit closest_hit;
     closest_hit.hit = false;
     closest_hit.distance = INFINITY;
 
-    glm::vec3 tOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
-    glm::vec3 tDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
-    tDirection = glm::normalize(tDirection);
+    glm::vec3 transformedOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
+    glm::vec3 transformedDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
+    transformedDirection = glm::normalize(transformedDirection);
 
-    for (const auto& face : faces) {
-        for (size_t i = 1; i + 1 < face.vertices.size(); i++) {
-          int v0_index = face.vertices[0];
-          int v1_index = face.vertices[i];
-          int v2_index = face.vertices[i+1];
+    Ray transformedRay(transformedOrigin, transformedDirection);
 
-          glm::vec3 v0 = vertices[v0_index];
-          glm::vec3 v1 = vertices[v1_index];
-          glm::vec3 v2 = vertices[v2_index];
-
-          glm::vec3 edge1 = v1 - v0;
-          glm::vec3 edge2 = v2 - v0;
-
-          glm::vec3 h = glm::cross(tDirection, edge2);
-          float a = glm::dot(edge1, h);
-
-          if (fabs(a) < 1e-8)
-            continue;
-
-          float f = 1.0f / a;
-          glm::vec3 s = tOrigin - v0;
-          float u = f * glm::dot(s, h);
-
-          if (u < 0.0f || u > 1.0f)
-            continue;
-
-          glm::vec3 q = glm::cross(s, edge1);
-          float v = f * glm::dot(tDirection, q);
-
-          if (v < 0.0f || u + v > 1.0f)
-            continue;
-
-          float t = f * glm::dot(edge2, q);
-
-          if (t > 1e-8) {
-            if (t < closest_hit.distance) {
-              closest_hit.hit = true;
-              closest_hit.distance = t;
-              closest_hit.intersection = tOrigin + t * tDirection;
-
-              if (face.normals.size() >= 3) {
-                int n0_index = face.normals[0];
-                int n1_index = face.normals[i];
-                int n2_index = face.normals[i + 1];
-                glm::vec3 n0 = normals[n0_index];
-                glm::vec3 n1 = normals[n1_index];
-                glm::vec3 n2 = normals[n2_index];
-                closest_hit.normal = glm::normalize(n0 * (1 - u - v) + n1 * u + n2 * v);
-              } else {
-                closest_hit.normal = glm::normalize(glm::cross(edge1, edge2));
-              }
-
-              closest_hit.object = this;
-            }
-          }
+    for (auto triangle : triangles) {
+      Hit hit = triangle->intersect(transformedRay);
+      if (hit.hit && hit.distance < closest_hit.distance) {
+        closest_hit = hit;
+        closest_hit.object = this;
       }
     }
 
@@ -454,13 +434,13 @@ public:
  */
 class Light{
 public:
-	glm::vec3 position; ///< Position of the light source
-	glm::vec3 color; ///< Color/intentisty of the light source
-	Light(glm::vec3 position): position(position){
-		color = glm::vec3(1.0);
-	}
-	Light(glm::vec3 position, glm::vec3 color): position(position), color(color){
-	}
+  glm::vec3 position; ///< Position of the light source
+  glm::vec3 color; ///< Color/intentisty of the light source
+  Light(glm::vec3 position): position(position){
+    color = glm::vec3(1.0);
+  }
+  Light(glm::vec3 position, glm::vec3 color): position(position), color(color){
+  }
 };
 
 vector<Light *> lights; ///< A list of lights in the scene
@@ -478,26 +458,26 @@ vector<Object *> objects; ///< A list of all objects in the scene
 */
 glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material){
 
-	glm::vec3 color(0.0);
-	for(int light_num = 0; light_num < lights.size(); light_num++){
+  glm::vec3 color(0.0);
+  for(int light_num = 0; light_num < lights.size(); light_num++){
 
-		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
-		glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
+    glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
+    glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
 
-		float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
-		float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
+    float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
+    float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
 
-		glm::vec3 diffuse_color = material.diffuse;
-		glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
-		glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
-		
-        float r = glm::distance(point,lights[light_num]->position);
-        r = max(r, 0.1f);
-        color += lights[light_num]->color * (diffuse + specular) / r/r;
-	}
-	color += ambient_light * material.ambient;
-	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
-	return color;
+    glm::vec3 diffuse_color = material.diffuse;
+    glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
+    glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
+
+    float r = glm::distance(point,lights[light_num]->position);
+    r = max(r, 0.1f);
+    color += lights[light_num]->color * (diffuse + specular) / r/r;
+  }
+  color += ambient_light * material.ambient;
+  color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
+  return color;
 }
 
 /**
@@ -507,22 +487,22 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
  */
 glm::vec3 trace_ray(Ray ray){
 
-	Hit closest_hit;
+  Hit closest_hit;
 
-	closest_hit.hit = false;
-	closest_hit.distance = INFINITY;
+  closest_hit.hit = false;
+  closest_hit.distance = INFINITY;
 
-	for(int k = 0; k<objects.size(); k++){
-		Hit hit = objects[k]->intersect(ray);
-		if(hit.hit == true && hit.distance < closest_hit.distance)
-			closest_hit = hit;
-	}
+  for(int k = 0; k<objects.size(); k++){
+    Hit hit = objects[k]->intersect(ray);
+    if(hit.hit == true && hit.distance < closest_hit.distance)
+      closest_hit = hit;
+  }
 
-	glm::vec3 color(0.0);
-	if(closest_hit.hit){
-		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
-	}else{
-		color = glm::vec3(0.0, 0.0, 0.0);
+  glm::vec3 color(0.0);
+  if(closest_hit.hit){
+    color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
+  }else{
+    color = glm::vec3(0.0, 0.0, 0.0);
 	}
 	return color;
 }
@@ -610,49 +590,70 @@ glm::vec3 toneMapping(glm::vec3 intensity){
 	float alpha = 12.0f;
 	return glm::clamp(alpha * glm::pow(intensity, glm::vec3(gamma)), glm::vec3(0.0), glm::vec3(1.0));
 }
+
+void printProgress(float percentage) {
+  int barWidth = 70; // Width of the progress bar
+
+  std::cout << "[";
+  int pos = barWidth * percentage;
+  for (int i = 0; i < barWidth; ++i) {
+    if (i < pos) std::cout << "▮";
+    else std::cout << ".";
+  }
+  std::cout << "] " << int(percentage * 100.0) << " %\r";
+  std::cout.flush();
+}
+
 int main(int argc, const char * argv[]) {
 
-    clock_t t = clock(); // variable for keeping the time of the rendering
+  clock_t t = clock(); // variable for keeping the time of the rendering
 
-    int width = 1024; //width of the image
-    int height = 768; // height of the image
-    float fov = 90; // field of view
+  int width = 480; //width of the image
+  int height = 240; // height of the image
+  float fov = 90; // field of view
 
-	sceneDefinition(); // Let's define a scene
+  sceneDefinition(); // Let's define a scene
 
-	Image image(width,height); // Create an image where we will store the result
-	vector<glm::vec3> image_values(width*height);
+  Image image(width,height); // Create an image where we will store the result
+  vector<glm::vec3> image_values(width*height);
 
-    float s = 2*tan(0.5*fov/180*M_PI)/width;
-    float X = -s * width / 2;
-    float Y = s * height / 2;
+  float s = 2*tan(0.5*fov/180*M_PI)/width;
+  float X = -s * width / 2;
+  float Y = s * height / 2;
 
-    for(int i = 0; i < width ; i++)
-        for(int j = 0; j < height ; j++){
+  int totalPixels = width * height;
+  int processed = 0;
 
-			float dx = X + i*s + s/2;
-            float dy = Y - j*s - s/2;
-            float dz = 1;
+  for(int i = 0; i < width ; i++)
+    for(int j = 0; j < height ; j++){
 
-			glm::vec3 origin(0, 0, 0);
-            glm::vec3 direction(dx, dy, dz);
-            direction = glm::normalize(direction);
+      float dx = X + i*s + s/2;
+      float dy = Y - j*s - s/2;
+      float dz = 1;
 
-            Ray ray(origin, direction);
-            image.setPixel(i, j, toneMapping(trace_ray(ray)));
-        }
-	
-    t = clock() - t;
-    cout<<"It took " << ((float)t)/CLOCKS_PER_SEC<< " seconds to render the image."<< endl;
-    cout<<"I could render at "<< (float)CLOCKS_PER_SEC/((float)t) << " frames per second."<<endl;
+      glm::vec3 origin(0, 0, 0);
+      glm::vec3 direction(dx, dy, dz);
+      direction = glm::normalize(direction);
 
-	// Writing the final results of the rendering
-	if (argc == 2){
-		image.writeImage(argv[1]);
-	}else{
-		image.writeImage("./result.ppm");
-	}
+      Ray ray(origin, direction);
+      image.setPixel(i, j, toneMapping(trace_ray(ray)));
 
-	
-    return 0;
+      processed++;
+      if (processed % (totalPixels / 100) == 0) 
+        printProgress((float)processed / totalPixels);
+    }
+
+  t = clock() - t;
+  cout<<"It took " << ((float)t)/CLOCKS_PER_SEC<< " seconds to render the image."<< endl;
+  cout<<"I could render at "<< (float)CLOCKS_PER_SEC/((float)t) << " frames per second."<<endl;
+
+  // Writing the final results of the rendering
+  if (argc == 2){
+    image.writeImage(argv[1]);
+  }else{
+    image.writeImage("./result.ppm");
+  }
+
+
+  return 0;
 }
