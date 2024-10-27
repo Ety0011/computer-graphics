@@ -2,6 +2,7 @@
 @file main.cpp
 */
 
+#include <array>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -246,23 +247,26 @@ public:
 class Triangle : public Object{
 private:
 	Plane *plane;
-	
-public:
-	glm::vec3 p1;
-	glm::vec3 p2;
-	glm::vec3 p3;
+	array<glm::vec3, 3> vertices;
+	array<glm::vec3, 3> normals;
 
+public:
 	Triangle(Material material){
 		this->material = material;
 		plane = new Plane(glm::vec3(0,0,0), glm::vec3(0,0,-1));
-		p1 = glm::vec3(-0.5, -0.5, 0);
-		p2 = glm::vec3(0.5, -0.5, 0);
-		p3 = glm::vec3(0, 0.5, 0);
+		vertices[0] = glm::vec3(-0.5, -0.5, 0);
+		vertices[1] = glm::vec3(0.5, -0.5, 0);
+		vertices[2] = glm::vec3(0, 0.5, 0);
 	}
-	Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, Material material) : p1(p1), p2(p2), p3(p3) {
+	Triangle(array<glm::vec3, 3> vertices, Material material) : vertices(vertices) {
 		this->material = material;
-		glm::vec3 normal = glm::normalize(glm::cross(p2 - p1, p3 - p1));
-		plane = new Plane(p1, normal);
+		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+		plane = new Plane(vertices[0], normal);
+	}
+	Triangle(array<glm::vec3, 3> vertices, array<glm::vec3, 3> normals, Material material) : vertices(vertices), normals(normals) {
+		this->material = material;
+		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+		plane = new Plane(vertices[0], normal);
 	}
 	Hit intersect(Ray ray){
 		
@@ -281,24 +285,18 @@ public:
 		hit.normal = hitPlane.normal;
 
 		glm::vec3 p = hit.intersection;
-		glm::vec3 N = glm::cross(p2 - p1, p3 - p1);
-		glm::vec3 n1 = glm::cross(p2 - p, p3 - p);
-		glm::vec3 n2 = glm::cross(p3 - p, p1 - p);
-		glm::vec3 n3 = glm::cross(p1 - p, p2 - p);
+		array<glm::vec3, 3> ns;
 
-		float sign1 = glm::dot(n1, N);
-		if (sign1 < 0) {
-			return hit;
+		glm::vec3 N = glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]);
+		for (int i = 0; i < ns.size(); i++) {
+			ns[i] = glm::cross(vertices[i] - p, vertices[(i + 1) % ns.size()] - p);
 		}
 
-		float sign2 = glm::dot(n2, N);
-		if (sign2 < 0) {
-			return hit;
-		}
-
-		float sign3 = glm::dot(n3 ,N);
-		if (sign3 < 0) {
-			return hit;
+		for (int i = 0; i < ns.size(); i++) {
+			float sign = glm::dot(ns[i], N);
+			if (sign < 0) {
+				return hit;
+			}
 		}
 		
 		hit.hit = true;
@@ -312,17 +310,10 @@ public:
 	}
 };
 
-struct Face {
-    vector<int> vertices;
-    vector<int> normals;
-};
-
 class Mesh : public Object {
 private:
-	vector<glm::vec3> vertices;
-    vector<glm::vec3> normals;
-    vector<Face> faces;
   	vector<Triangle> triangles;
+	bool smoothShading;
 
 public:
 	Mesh(Material material) {
@@ -350,13 +341,20 @@ public:
             return false;
         }
 
+		vector<glm::vec3> vertices;
+    	vector<glm::vec3> normals;
         string line;
         while (getline(file, line)) {
             istringstream lineStream(line);
             string prefix;
             lineStream >> prefix;
 
-            if (prefix == "v") {
+			if (prefix == "s") {
+                bool x;
+                lineStream >> x;
+				smoothShading = x;
+
+            } else if (prefix == "v") {
                 float x, y, z;
                 lineStream >> x >> y >> z;
                 vertices.emplace_back(x, y, z);
@@ -367,61 +365,51 @@ public:
                 normals.emplace_back(nx, ny, nz);
 
             } else if (prefix == "f") {
-                Face face;
+                vector<int> verticesIndex;
+				vector<int> normalsIndex;
                 string indexPair;
 
                 while (lineStream >> indexPair) {
                     istringstream indexStream(indexPair);
-          int v, vn;
+					int vIndex, vnIndex;
 
-          indexStream >> v;
-          face.vertices.push_back(v - 1);
+					indexStream >> vIndex;
+					verticesIndex.push_back(vIndex - 1);
 
-          if (indexStream.peek() == '/') {
-            indexStream.ignore(2);
-            indexStream >> vn;
-            face.normals.push_back(vn - 1);
-          }
-        }
-        faces.push_back(face);
-      }
-    }
-    file.close();
+					if (indexStream.peek() == '/') {
+						indexStream.ignore(2);
+						indexStream >> vnIndex;
+						normalsIndex.push_back(vnIndex - 1);
+					}
+				}
 
-    for (const auto& face : faces) {
-      if (face.vertices.size() >= 3) {
-        for (size_t i = 1; i + 1 <= face.vertices.size(); i++) {
-          int v0_index = face.vertices[0];
-          int v1_index = face.vertices[i - 1];
-          int v2_index = face.vertices[i % face.vertices.size()];
+				array<glm::vec3, 3> triangleVertices;
+				for (int i = 0; i < 3; i++) {
+					triangleVertices[i] = vertices[verticesIndex[i]];
+				}
 
-          glm::vec3 v0 = vertices[v0_index];
-          glm::vec3 v1 = vertices[v1_index];
-          glm::vec3 v2 = vertices[v2_index];
-
-          Triangle triangle = Triangle(v0, v1, v2, this->material);
-
-          triangles.push_back(triangle);
-        }
-      }
-    }
-
-    return true;
-  }
+				Triangle triangle(triangleVertices, this->material);
+				if (smoothShading) {
+					array<glm::vec3, 3> triangleNormals;
+					for (int i = 0; i < 3; i++) {
+						triangleNormals[i] = normals[normalsIndex[i]];
+					}
+					triangle = Triangle(triangleVertices, triangleNormals, this->material);
+				}
+				
+				triangles.push_back(triangle);
+      		}
+    	}
+		file.close();
+		return true;
+	}
 
   Hit intersect(Ray ray) {
     Hit closest_hit;
     closest_hit.hit = false;
     closest_hit.distance = INFINITY;
 
-    // glm::vec3 transformedOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
-    // glm::vec3 transformedDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
-    // transformedDirection = glm::normalize(transformedDirection);
-
-    // Ray transformedRay(transformedOrigin, transformedDirection);
-
     for (auto triangle : triangles) {
-
       Hit hit = triangle.intersect(ray);
       if (hit.hit && hit.distance < closest_hit.distance) {
         closest_hit = hit;
@@ -553,35 +541,6 @@ void sceneDefinition (){
 	blue_specular.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
-
-  	// Define material for the mesh
-	Material mesh_material;
-	mesh_material.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
-	mesh_material.diffuse = glm::vec3(0.6f, 0.7f, 0.8f);
-	mesh_material.specular = glm::vec3(0.9f);
-	mesh_material.shininess = 50.0f;
-
-	// Create the mesh object
-	Mesh *mesh = new Mesh("C:\\Users\\Etienne\\Documents\\_Documents\\Projects\\computer-graphics\\Assignment 3\\code\\meshes\\bunny.obj", mesh_material);
-	// Mesh *mesh = new Mesh(mesh_material);
-
-	// Apply transformations if necessary
-	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.0f, 5.0f));
-	glm::mat4 scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
-	mesh->setTransformation(translation * scaling);
-	mesh->setTransformationTriangles(translation * scaling);
-
-	// Add the mesh to the objects list
-	objects.push_back(mesh);
-
-	// Triangles
-	Triangle *triangle = new Triangle(green_diffuse);
-	glm::mat4 translationMatrix = glm::translate(glm::vec3(4,0,7));
-	glm::mat4 scalingMatrix = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
-	glm::mat4 rotationMatrix = glm::rotate(0.0f, glm::vec3(0,0,1));
-	triangle->setTransformation(translationMatrix* rotationMatrix*scalingMatrix);
-	objects.push_back(triangle);
-
 	
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
@@ -594,12 +553,28 @@ void sceneDefinition (){
     Material blue_diffuse;
     blue_diffuse.ambient = glm::vec3(0.06f, 0.06f, 0.09f);
     blue_diffuse.diffuse = glm::vec3(0.6f, 0.6f, 0.9f);
+
+	// Define material for the mesh
+	Material mesh_material;
+	mesh_material.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+	mesh_material.diffuse = glm::vec3(0.6f, 0.7f, 0.8f);
+	mesh_material.specular = glm::vec3(0.9f);
+	mesh_material.shininess = 50.0f;
+
+	// Mesh
+	Mesh *mesh = new Mesh("C:\\Users\\Etienne\\Documents\\_Documents\\Projects\\computer-graphics\\Assignment 3\\code\\meshes\\bunny.obj", mesh_material);
+	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.0f, 5.0f));
+	glm::mat4 scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+	mesh->setTransformation(translation * scaling);
+	mesh->setTransformationTriangles(translation * scaling);
+
     objects.push_back(new Plane(glm::vec3(0,-3,0), glm::vec3(0.0,1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,30), glm::vec3(0.0,0.0,-1.0), green_diffuse));
     objects.push_back(new Plane(glm::vec3(-15,1,0), glm::vec3(1.0,0.0,0.0), red_diffuse));
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
+	objects.push_back(mesh);
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 	float gamma = 1.0/2.0;
