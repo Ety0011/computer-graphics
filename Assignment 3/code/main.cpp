@@ -8,6 +8,7 @@
 #include <cmath>
 #include <ctime>
 #include <vector>
+#include "glm/geometric.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 
@@ -370,6 +371,84 @@ public:
         file.close();
         return true;
     }
+
+  Hit intersect(Ray ray) {
+    Hit closest_hit;
+    closest_hit.hit = false;
+    closest_hit.distance = INFINITY;
+
+    glm::vec3 tOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
+    glm::vec3 tDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
+    tDirection = glm::normalize(tDirection);
+
+    for (const auto& face : faces) {
+      if (face.vertices.size() >= 3) {
+        for (size_t i = i; i + 1 < face.vertices.size(); i++) {
+          int v0_index = face.vertices[0];
+          int v1_index = face.vertices[i];
+          int v2_index = face.vertices[i+1];
+
+          glm::vec3 v0 = vertices[v0_index];
+          glm::vec3 v1 = vertices[v1_index];
+          glm::vec3 v2 = vertices[v2_index];
+
+          glm::vec3 edge1 = v1 - v0;
+          glm::vec3 edge2 = v2 - v0;
+
+          glm::vec3 h = glm::cross(tDirection, edge2);
+          float a = glm::dot(edge1, h);
+
+          if (fabs(a) < 1e-8)
+            continue;
+
+          float f = 1.0f / a;
+          glm::vec3 s = tOrigin - v0;
+          float u = f * glm::dot(s, h);
+
+          if (u < 0.0f || u > 1.0f)
+            continue;
+
+          glm::vec3 q = glm::cross(s, edge1);
+          float v = f * glm::dot(tDirection, q);
+
+          if (v < 0.0f || u + v > 1.0f)
+            continue;
+
+          float t = f * glm::dot(edge2, q);
+
+          if (t > 1e-8) {
+            if (t < closest_hit.distance) {
+              closest_hit.hit = true;
+              closest_hit.distance = t;
+              closest_hit.intersection = tOrigin + t * tDirection;
+
+              if (face.normals.size() >= 3) {
+                int n0_index = face.normals[0];
+                int n1_index = face.normals[i];
+                int n2_index = face.normals[i + 1];
+                glm::vec3 n0 = normals[n0_index];
+                glm::vec3 n1 = normals[n1_index];
+                glm::vec3 n2 = normals[n2_index];
+                closest_hit.normal = glm::normalize(n0 * (1 - u - v) + n1 * u + n2 * v);
+              } else {
+                closest_hit.normal = glm::normalize(glm::cross(edge1, edge2));
+              }
+
+              closest_hit.object = this;
+            }
+          }
+        }
+      }
+    }
+
+    if (closest_hit.hit) {
+      closest_hit.intersection = transformationMatrix * glm::vec4(closest_hit.intersection, 1.0);
+      closest_hit.normal = glm::normalize(normalMatrix * glm::vec4(closest_hit.normal, 0.0));
+      closest_hit.distance = glm::length(closest_hit.intersection - ray.origin);
+    }
+
+    return closest_hit;
+  }
 };
 
 /**
@@ -488,8 +567,24 @@ void sceneDefinition (){
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
 
-	objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
-	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
+  // Define material for the mesh
+Material mesh_material;
+mesh_material.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+mesh_material.diffuse = glm::vec3(0.6f, 0.7f, 0.8f);
+mesh_material.specular = glm::vec3(0.9f);
+mesh_material.shininess = 50.0f;
+
+// Create the mesh object
+Mesh *mesh = new Mesh("/home/leonardo/dev/Uni/computer-graphics/Assignment 3/code/meshes/bunny.obj", mesh_material);
+
+// Apply transformations if necessary
+glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.0f, 5.0f));
+glm::mat4 scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+mesh->setTransformation(translation * scaling);
+
+// Add the mesh to the objects list
+objects.push_back(mesh);
+
 	
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
@@ -511,34 +606,6 @@ void sceneDefinition (){
 	
 	
 	
-	// Cones
-	Material yellow_specular;
-	yellow_specular.ambient = glm::vec3(0.1f, 0.10f, 0.0f);
-	yellow_specular.diffuse = glm::vec3(0.4f, 0.4f, 0.0f);
-	yellow_specular.specular = glm::vec3(1.0);
-	yellow_specular.shininess = 100.0;
-	
-	Cone *cone = new Cone(yellow_specular);
-	glm::mat4 translationMatrix = glm::translate(glm::vec3(5,9,14));
-	glm::mat4 scalingMatrix = glm::scale(glm::vec3(3.0f, 12.0f, 3.0f));
-	glm::mat4 rotationMatrix = glm::rotate(glm::radians(180.0f) , glm::vec3(1,0,0));
-	cone->setTransformation(translationMatrix*scalingMatrix*rotationMatrix);
-	objects.push_back(cone);
-	
-	Cone *cone2 = new Cone(green_diffuse);
-	translationMatrix = glm::translate(glm::vec3(6,-3,7));
-	scalingMatrix = glm::scale(glm::vec3(1.0f, 3.0f, 1.0f));
-	rotationMatrix = glm::rotate(glm::atan(3.0f), glm::vec3(0,0,1));
-	cone2->setTransformation(translationMatrix* rotationMatrix*scalingMatrix);
-	objects.push_back(cone2);
-	
-	// Triangles
-	Triangle *triangle = new Triangle(green_diffuse);
-	translationMatrix = glm::translate(glm::vec3(-4,-2,7));
-	scalingMatrix = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
-	rotationMatrix = glm::rotate(0.0f, glm::vec3(0,0,1));
-	triangle->setTransformation(translationMatrix* rotationMatrix*scalingMatrix);
-	objects.push_back(triangle);
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 	float gamma = 1.0/2.0;
