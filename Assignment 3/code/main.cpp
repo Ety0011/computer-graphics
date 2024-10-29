@@ -282,10 +282,9 @@ public:
 
 		glm::vec3 p = hit.intersection;
 		array<glm::vec3, 3> ns;
-		// FIXME: ns of i is not correct
 		glm::vec3 N = glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]);
 		for (int i = 0; i < 3; i++) {
-			ns[i] = glm::cross(vertices[i] - p, vertices[(i + 1) % 3] - p);
+			ns[i] = glm::cross(vertices[(i + 1) % 3] - p, vertices[(i + 2) % 3] - p);
 		}
 
 		array<float, 3> signes;
@@ -591,8 +590,8 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
 	objects.push_back(bunny);
-	objects.push_back(armadillo);
-	objects.push_back(lucy);
+	// objects.push_back(armadillo);
+	// objects.push_back(lucy);
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 	float gamma = 1.0/2.0;
