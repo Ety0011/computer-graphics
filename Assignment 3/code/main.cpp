@@ -290,7 +290,7 @@ public:
 
 		glm::vec3 p = hit.intersection;
 		array<glm::vec3, 3> ns;
-
+		// FIXME: ns of i is not correct
 		glm::vec3 N = glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]);
 		for (int i = 0; i < 3; i++) {
 			ns[i] = glm::cross(vertices[i] - p, vertices[(i + 1) % 3] - p);
@@ -581,11 +581,23 @@ void sceneDefinition (){
 	mesh_material.shininess = 50.0f;
 
 	// Mesh
-	Mesh *mesh = new Mesh("C:\\Users\\Etienne\\Documents\\_Documents\\Projects\\computer-graphics\\Assignment 3\\code\\meshes\\bunny.obj", mesh_material);
-	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.0f, 5.0f));
-	glm::mat4 scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
-	mesh->setTransformation(translation * scaling);
-	mesh->setTransformationTriangles(translation * scaling);
+	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny.obj", mesh_material);
+	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
+	glm::mat4 scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+	bunny->setTransformation(translation * scaling);
+	bunny->setTransformationTriangles(translation * scaling);
+
+	Mesh *armadillo = new Mesh("../../../Assignment 3/code/meshes/armadillo.obj", mesh_material);
+	glm::mat4 translation2 = glm::translate(glm::vec3(-2.25f, -1.5f, 6.0f));
+	glm::mat4 scaling2 = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+	armadillo->setTransformation(translation * scaling);
+	armadillo->setTransformationTriangles(translation2 * scaling2);
+
+	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj", mesh_material);
+	glm::mat4 translation3 = glm::translate(glm::vec3(2.25f, -1.5f, 6.0f));
+	glm::mat4 scaling3 = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+	lucy->setTransformation(translation * scaling);
+	lucy->setTransformationTriangles(translation3 * scaling3);
 
     objects.push_back(new Plane(glm::vec3(0,-3,0), glm::vec3(0.0,1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,30), glm::vec3(0.0,0.0,-1.0), green_diffuse));
@@ -593,7 +605,9 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
-	objects.push_back(mesh);
+	objects.push_back(bunny);
+	objects.push_back(armadillo);
+	objects.push_back(lucy);
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 	float gamma = 1.0/2.0;
@@ -618,8 +632,8 @@ int main(int argc, const char * argv[]) {
 
   clock_t t = clock(); // variable for keeping the time of the rendering
 
-  int width = 480; //width of the image
-  int height = 240; // height of the image
+  int width = 240; //width of the image
+  int height = 135; // height of the image
   float fov = 90; // field of view
 
   sceneDefinition(); // Let's define a scene
