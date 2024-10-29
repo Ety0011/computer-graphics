@@ -327,12 +327,7 @@ private:
 
 public:
 	Mesh(const string& filename, Material material){
-		if (!loadFromFile(filename)) {
-            throw std::runtime_error("Failed to load mesh from file: " + filename);
-        }
 		this->material = material;
-	}
-	Mesh(const string& filename){
 		if (!loadFromFile(filename)) {
             throw std::runtime_error("Failed to load mesh from file: " + filename);
         }
@@ -423,14 +418,7 @@ public:
       Hit hit = triangle.intersect(ray);
       if (hit.hit && hit.distance < closest_hit.distance) {
         closest_hit = hit;
-        closest_hit.object = this;
       }
-    }
-
-    if (closest_hit.hit) {
-      closest_hit.intersection = transformationMatrix * glm::vec4(closest_hit.intersection, 1.0);
-      closest_hit.normal = glm::normalize(normalMatrix * glm::vec4(closest_hit.normal, 0.0));
-      closest_hit.distance = glm::length(closest_hit.intersection - ray.origin);
     }
 
     return closest_hit;
@@ -564,20 +552,24 @@ void sceneDefinition (){
     blue_diffuse.ambient = glm::vec3(0.06f, 0.06f, 0.09f);
     blue_diffuse.diffuse = glm::vec3(0.6f, 0.6f, 0.9f);
 
+	Material white_diffuse;
+	white_diffuse.ambient = glm::vec3(0.1f);
+    white_diffuse.diffuse = glm::vec3(0.5f);
+
 	// Mesh
-	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny.obj");
+	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny.obj", white_diffuse);
 	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
 	glm::mat4 scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	bunny->setTransformation(translation * scaling);
 	bunny->setTransformationTriangles(translation * scaling);
 
-	Mesh *armadillo = new Mesh("../../../Assignment 3/code/meshes/armadillo.obj");
+	Mesh *armadillo = new Mesh("../../../Assignment 3/code/meshes/armadillo.obj", green_diffuse);
 	glm::mat4 translation2 = glm::translate(glm::vec3(-2.25f, -1.5f, 6.0f));
 	glm::mat4 scaling2 = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	armadillo->setTransformation(translation * scaling);
 	armadillo->setTransformationTriangles(translation2 * scaling2);
 
-	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj");
+	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj", green_diffuse);
 	glm::mat4 translation3 = glm::translate(glm::vec3(2.25f, -1.5f, 6.0f));
 	glm::mat4 scaling3 = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	lucy->setTransformation(translation * scaling);
@@ -590,8 +582,8 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
 	objects.push_back(bunny);
-	// objects.push_back(armadillo);
-	// objects.push_back(lucy);
+	objects.push_back(armadillo);
+	objects.push_back(lucy);
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 	float gamma = 1.0/2.0;
@@ -616,8 +608,8 @@ int main(int argc, const char * argv[]) {
 
   clock_t t = clock(); // variable for keeping the time of the rendering
 
-  int width = 240; //width of the image
-  int height = 135; // height of the image
+  int width = 320; //width of the image
+  int height = 240; // height of the image
   float fov = 90; // field of view
 
   sceneDefinition(); // Let's define a scene
