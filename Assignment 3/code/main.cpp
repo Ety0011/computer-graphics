@@ -252,14 +252,6 @@ private:
 	bool smoothSmoothing;
 
 public:
-	Triangle(Material material){
-		this->material = material;
-		plane = new Plane(glm::vec3(0,0,0), glm::vec3(0,0,-1));
-		vertices[0] = glm::vec3(-0.5, -0.5, 0);
-		vertices[1] = glm::vec3(0.5, -0.5, 0);
-		vertices[2] = glm::vec3(0, 0.5, 0);
-		smoothSmoothing = false;
-	}
 	Triangle(array<glm::vec3, 3> vertices, Material material) : vertices(vertices) {
 		this->material = material;
 		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
@@ -335,16 +327,16 @@ private:
 	bool smoothShading;
 
 public:
-	Mesh(Material material) {
-		this->material = material;
-		Triangle triangle(material);
-		triangles.push_back(triangle);
-	}
 	Mesh(const string& filename, Material material){
 		if (!loadFromFile(filename)) {
             throw std::runtime_error("Failed to load mesh from file: " + filename);
         }
 		this->material = material;
+	}
+	Mesh(const string& filename){
+		if (!loadFromFile(filename)) {
+            throw std::runtime_error("Failed to load mesh from file: " + filename);
+        }
 	}
 
 	void setTransformationTriangles(glm::mat4 matrix){
@@ -573,27 +565,20 @@ void sceneDefinition (){
     blue_diffuse.ambient = glm::vec3(0.06f, 0.06f, 0.09f);
     blue_diffuse.diffuse = glm::vec3(0.6f, 0.6f, 0.9f);
 
-	// Define material for the mesh
-	Material mesh_material;
-	mesh_material.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
-	mesh_material.diffuse = glm::vec3(0.6f, 0.7f, 0.8f);
-	mesh_material.specular = glm::vec3(0.9f);
-	mesh_material.shininess = 50.0f;
-
 	// Mesh
-	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny.obj", mesh_material);
+	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny.obj");
 	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
 	glm::mat4 scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	bunny->setTransformation(translation * scaling);
 	bunny->setTransformationTriangles(translation * scaling);
 
-	Mesh *armadillo = new Mesh("../../../Assignment 3/code/meshes/armadillo.obj", mesh_material);
+	Mesh *armadillo = new Mesh("../../../Assignment 3/code/meshes/armadillo.obj");
 	glm::mat4 translation2 = glm::translate(glm::vec3(-2.25f, -1.5f, 6.0f));
 	glm::mat4 scaling2 = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	armadillo->setTransformation(translation * scaling);
 	armadillo->setTransformationTriangles(translation2 * scaling2);
 
-	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj", mesh_material);
+	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj");
 	glm::mat4 translation3 = glm::translate(glm::vec3(2.25f, -1.5f, 6.0f));
 	glm::mat4 scaling3 = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	lucy->setTransformation(translation * scaling);
