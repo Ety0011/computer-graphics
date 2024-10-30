@@ -323,11 +323,12 @@ public:
 class Mesh : public Object {
 private:
   	vector<Triangle> triangles;
-	bool smoothShading;
+	int smoothShading;
 
 public:
 	Mesh(const string& filename, Material material){
 		this->material = material;
+		smoothShading = 0;
 		if (!loadFromFile(filename)) {
             throw std::runtime_error("Failed to load mesh from file: " + filename);
         }
@@ -370,34 +371,45 @@ public:
                 normals.emplace_back(nx, ny, nz);
 
             } else if (prefix == "f") {
-                vector<int> verticesIndex;
-				vector<int> normalsIndex;
-                string indexPair;
+                vector<int> vIndices;
+				vector<int> vnIndices;
+                string indexString;
 
-                while (lineStream >> indexPair) {
-                    istringstream indexStream(indexPair);
-					int vIndex, vnIndex;
+                while (lineStream >> indexString) {
+                    istringstream indexStream(indexString);
+					int vIndex, vtIndex, vnIndex;
 
 					indexStream >> vIndex;
-					verticesIndex.push_back(vIndex - 1);
+					vIndices.push_back(vIndex - 1);
+
+
+					if (indexStream.peek() != '/') {
+						continue;
+					}
+					indexStream.ignore();
+
+					if (indexStream.peek() != '/') {
+						indexStream >> vtIndex;
+					}
 
 					if (indexStream.peek() == '/') {
-						indexStream.ignore(2);
+						indexStream.ignore();
 						indexStream >> vnIndex;
-						normalsIndex.push_back(vnIndex - 1);
+						vnIndices.push_back(vnIndex);
 					}
+
 				}
 
 				array<glm::vec3, 3> triangleVertices;
 				for (int i = 0; i < 3; i++) {
-					triangleVertices[i] = vertices[verticesIndex[i]];
+					triangleVertices[i] = vertices[vIndices[i]];
 				}
 
 				Triangle triangle(triangleVertices, this->material);
-				if (smoothShading) {
+				if (smoothShading == 1) {
 					array<glm::vec3, 3> triangleNormals;
 					for (int i = 0; i < 3; i++) {
-						triangleNormals[i] = normals[normalsIndex[i]];
+						triangleNormals[i] = normals[vnIndices[i]];
 					}
 					triangle = Triangle(triangleVertices, triangleNormals, this->material);
 				}
@@ -537,12 +549,16 @@ void sceneDefinition (){
 
 	Material white_diffuse;
 	white_diffuse.ambient = glm::vec3(0.09f);
-    white_diffuse.diffuse = glm::vec3(0.9f);
+    white_diffuse.diffuse = glm::vec3(0.5f);
 
 	// Mesh
-	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny_with_normals.obj", white_diffuse);
-	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
-	glm::mat4 scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+	glm::mat4 translation;
+	glm::mat4 scaling;
+	glm::mat4 rotation;
+
+	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny.obj", white_diffuse);
+	translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
+	scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	bunny->setTransformation(translation * scaling);
 	bunny->setTransformationTriangles(translation * scaling);
 
@@ -552,11 +568,18 @@ void sceneDefinition (){
 	armadillo->setTransformation(translation * scaling);
 	armadillo->setTransformationTriangles(translation * scaling);
 
-	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj", green_diffuse);
+	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj", white_diffuse);
 	translation = glm::translate(glm::vec3(2.25f, -1.5f, 6.0f));
 	scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	lucy->setTransformation(translation * scaling);
 	lucy->setTransformationTriangles(translation * scaling);
+
+	Mesh *bird = new Mesh("../../../Assignment 3/code/meshes/bird.obj", white_diffuse);
+	translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
+	scaling = glm::scale(glm::vec3(10.0f, 10.0f, 10.0f));
+	rotation = glm::rotate(glm::radians(225.0f) , glm::vec3(0,1,0));
+	bird->setTransformation(translation * scaling);
+	bird->setTransformationTriangles(translation * rotation * scaling);
 
     objects.push_back(new Plane(glm::vec3(0,-3,0), glm::vec3(0.0,1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,30), glm::vec3(0.0,0.0,-1.0), green_diffuse));
@@ -564,9 +587,10 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
-	objects.push_back(bunny);
+	objects.push_back(bird);
 	objects.push_back(armadillo);
 	objects.push_back(lucy);
+	
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
 	float gamma = 1.0/2.0;
@@ -591,8 +615,8 @@ int main(int argc, const char * argv[]) {
 
   clock_t t = clock(); // variable for keeping the time of the rendering
 
-  int width = 160;// 320; //width of the image
-  int height = 120;// 240; // height of the image
+  int width = 80;// 320; //width of the image
+  int height = 60;// 240; // height of the image
   float fov = 90; // field of view
 
   sceneDefinition(); // Let's define a scene
