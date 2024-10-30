@@ -414,8 +414,9 @@ public:
     closest_hit.hit = false;
     closest_hit.distance = INFINITY;
 
-    for (auto triangle : triangles) {
-      Hit hit = triangle.intersect(ray);
+    // for (auto triangle : triangles) {
+	for (int k = 0; k < triangles.size(); k++) {
+      Hit hit = triangles[k].intersect(ray);
       if (hit.hit && hit.distance < closest_hit.distance) {
         closest_hit = hit;
       }
@@ -506,35 +507,13 @@ glm::vec3 trace_ray(Ray ray){
  Function defining the scene
  */
 void sceneDefinition (){
-
-	
-	Material green_diffuse;
-	green_diffuse.ambient = glm::vec3(0.7f, 0.9f, 0.7f);
-	green_diffuse.diffuse = glm::vec3(0.7f, 0.9f, 0.7f);
-
 	Material red_specular;
-	red_specular.ambient = glm::vec3(1.0f, 0.3f, 0.3f);
-	red_specular.diffuse = glm::vec3(1.0f, 0.3f, 0.3f);
-	red_specular.specular = glm::vec3(0.5);
-	red_specular.shininess = 10.0;
-
-	Material blue_specular;
-	blue_specular.ambient = glm::vec3(0.7f, 0.7f, 1.0f);
-	blue_specular.diffuse = glm::vec3(0.7f, 0.7f, 1.0f);
-	blue_specular.specular = glm::vec3(0.6);
-	blue_specular.shininess = 100.0;
-	
-	//Material green_diffuse;
-	green_diffuse.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
-	green_diffuse.diffuse = glm::vec3(0.3f, 1.0f, 0.3f);
-
-	//Material red_specular;
 	red_specular.diffuse = glm::vec3(1.0f, 0.2f, 0.2f);
 	red_specular.ambient = glm::vec3(0.01f, 0.02f, 0.02f);
 	red_specular.specular = glm::vec3(0.5);
 	red_specular.shininess = 10.0;
 
-	//Material blue_specular;
+	Material blue_specular;
 	blue_specular.ambient = glm::vec3(0.02f, 0.02f, 0.1f);
 	blue_specular.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);
 	blue_specular.specular = glm::vec3(0.6);
@@ -543,6 +522,10 @@ void sceneDefinition (){
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
 	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4)));
+
+	Material green_diffuse;
+	green_diffuse.ambient = glm::vec3(0.06f, 0.09f, 0.06f);
+	green_diffuse.diffuse = glm::vec3(0.6f, 0.9f, 0.6f);
 	
     Material red_diffuse;
     red_diffuse.ambient = glm::vec3(0.09f, 0.06f, 0.06f);
@@ -553,8 +536,8 @@ void sceneDefinition (){
     blue_diffuse.diffuse = glm::vec3(0.6f, 0.6f, 0.9f);
 
 	Material white_diffuse;
-	white_diffuse.ambient = glm::vec3(0.1f);
-    white_diffuse.diffuse = glm::vec3(0.5f);
+	white_diffuse.ambient = glm::vec3(0.09f);
+    white_diffuse.diffuse = glm::vec3(0.9f);
 
 	// Mesh
 	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny_with_normals.obj", white_diffuse);
