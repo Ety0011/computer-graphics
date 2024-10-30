@@ -346,7 +346,7 @@ public:
             cerr << "Failed to open file: " << filename << endl;
             return false;
         }
-
+		
 		vector<glm::vec3> vertices;
     	vector<glm::vec3> normals;
         string line;
@@ -395,7 +395,7 @@ public:
 					if (indexStream.peek() == '/') {
 						indexStream.ignore();
 						indexStream >> vnIndex;
-						vnIndices.push_back(vnIndex);
+						vnIndices.push_back(vnIndex - 1);
 					}
 
 				}
@@ -556,30 +556,31 @@ void sceneDefinition (){
 	glm::mat4 scaling;
 	glm::mat4 rotation;
 
-	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny.obj", white_diffuse);
+	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny_with_normals.obj", white_diffuse);
 	translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
 	scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	bunny->setTransformation(translation * scaling);
 	bunny->setTransformationTriangles(translation * scaling);
 
-	Mesh *armadillo = new Mesh("../../../Assignment 3/code/meshes/armadillo.obj", white_diffuse);
-	translation = glm::translate(glm::vec3(-2.25f, -1.5f, 6.0f));
-	scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
-	armadillo->setTransformation(translation * scaling);
-	armadillo->setTransformationTriangles(translation * scaling);
+	// Mesh *armadillo = new Mesh("../../../Assignment 3/code/meshes/armadillo.obj", white_diffuse);
+	// translation = glm::translate(glm::vec3(-2.25f, -1.5f, 6.0f));
+	// scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+	// armadillo->setTransformation(translation * scaling);
+	// armadillo->setTransformationTriangles(translation * scaling);
 
-	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj", white_diffuse);
-	translation = glm::translate(glm::vec3(2.25f, -1.5f, 6.0f));
-	scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
-	lucy->setTransformation(translation * scaling);
-	lucy->setTransformationTriangles(translation * scaling);
+	// Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj", white_diffuse);
+	// translation = glm::translate(glm::vec3(2.25f, -1.5f, 6.0f));
+	// scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+	// lucy->setTransformation(translation * scaling);
+	// lucy->setTransformationTriangles(translation * scaling);
 
-	Mesh *bird = new Mesh("../../../Assignment 3/code/meshes/bird.obj", white_diffuse);
+	Mesh *pyramid = new Mesh("../../../Assignment 3/code/meshes/pyramid.obj", white_diffuse);
 	translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
-	scaling = glm::scale(glm::vec3(10.0f, 10.0f, 10.0f));
-	rotation = glm::rotate(glm::radians(225.0f) , glm::vec3(0,1,0));
-	bird->setTransformation(translation * scaling);
-	bird->setTransformationTriangles(translation * rotation * scaling);
+	scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+	rotation = glm::rotate(glm::radians(-90.0f) , glm::vec3(1,0,0));
+	glm::mat4 rotation2 = glm::rotate(glm::radians(60.0f) , glm::vec3(0,1,0));
+	pyramid->setTransformation(translation * rotation2 * rotation * scaling);
+	pyramid->setTransformationTriangles(translation * rotation2 * rotation * scaling);
 
     objects.push_back(new Plane(glm::vec3(0,-3,0), glm::vec3(0.0,1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,30), glm::vec3(0.0,0.0,-1.0), green_diffuse));
@@ -587,9 +588,10 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
-	objects.push_back(bird);
-	objects.push_back(armadillo);
-	objects.push_back(lucy);
+	objects.push_back(pyramid);
+	// objects.push_back(bunny);
+	// objects.push_back(armadillo);
+	// objects.push_back(lucy);
 	
 }
 glm::vec3 toneMapping(glm::vec3 intensity){
@@ -615,8 +617,8 @@ int main(int argc, const char * argv[]) {
 
   clock_t t = clock(); // variable for keeping the time of the rendering
 
-  int width = 80;// 320; //width of the image
-  int height = 60;// 240; // height of the image
+  int width = 1920;// 320; //width of the image
+  int height = 1080;// 240; // height of the image
   float fov = 90; // field of view
 
   sceneDefinition(); // Let's define a scene
