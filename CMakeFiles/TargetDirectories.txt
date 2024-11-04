@@ -1,0 +1,4 @@
+/home/leonardo/dev/Uni/computer-graphics/CMakeFiles/vanilla.dir
+/home/leonardo/dev/Uni/computer-graphics/CMakeFiles/consts_only.dir
+/home/leonardo/dev/Uni/computer-graphics/CMakeFiles/edit_cache.dir
+/home/leonardo/dev/Uni/computer-graphics/CMakeFiles/rebuild_cache.dir
