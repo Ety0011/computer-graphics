@@ -7,16 +7,14 @@ Use this with the python script for plotting (WIP)
 
 File: bunny_small bunny_small
 Description: Vanilla Code, no modifications to the algorithms
-Average Time Total: 
-Average Time FPS: 
-Total Number of Triangles:
-Time per Triangle:
-
-### CONSTS_ONLY
+Average Time Total: 161.6175
+Average Time FPS: 0.0062
+Total Number of Triangles: 2784
+Time per Triangle: 0.05805226### CONSTS_ONLY
 
 File: bunny_small bunny_small
 Description: glm was changed for raym, a constexpr-only library for vectors and matrices
-Average Time Total: 
-Average Time FPS: 
-Total Number of Triangles: 
-Time per Triangle:
+Average Time Total: 79.9661
+Average Time FPS: 0.0125
+Total Number of Triangles: 2784
+Time per Triangle: 0.02872347

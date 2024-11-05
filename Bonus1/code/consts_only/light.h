@@ -23,9 +23,9 @@ public:
   }
 };
 
-raym::vec3 ambient_light(0.001, 0.001, 0.001);
+const raym::vec3 ambient_light(0.001, 0.001, 0.001);
 
-constexpr raym::vec3 PhongModel(const raym::vec3& point, const raym::vec3& normal, const raym::vec3& view_direction, const Material& material, std::vector<Light *> &lights) 
+inline raym::vec3 PhongModel(const raym::vec3& point, const raym::vec3& normal, const raym::vec3& view_direction, const Material& material, std::vector<Light *> &lights) 
 {
   raym::vec3 color(0.0);
   for (int light_num = 0; light_num < lights.size(); light_num++)

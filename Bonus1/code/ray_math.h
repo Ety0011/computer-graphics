@@ -3,6 +3,8 @@
 #include <cmath>
 #include <limits>
 
+// TODO: make glm::vec3 and raym::vec3 etc interoperable 
+
 // ! Ottimizzazione ENORME (ci mette un po' di piu' a compilare, ma runna molto piu' velocemente)
 // glm non usa le feature piu' moderne di C++20 ma si puo' fare questo piccolo hack 
 namespace raym {
