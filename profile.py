@@ -55,6 +55,7 @@ def run_profile(executable, args):
 
 def count_triangles_in_obj(file_path):
     count = 0
+    file_path = file_path + ".obj"
     try:
         with open(file_path, 'r') as f:
             for line in f:
