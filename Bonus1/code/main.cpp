@@ -68,8 +68,6 @@ namespace math {
 }
 #endif
 
-std::vector<Light *> lights = defineLights();
-std::vector<Object *> objects = defineObjects();
 
 void printProgress(float percentage)
 {
@@ -95,6 +93,14 @@ int main(int argc, const char *argv[])
 	int width = 480;	
 	int height = 240; 
 	float fov = 90;		
+
+  std::vector<std::string> meshFilenames;
+  for (int i = 1; i < argc; i++) {
+    meshFilenames.push_back(argv[i]);
+  }
+
+  std::vector<Light *> lights = defineLights();
+  std::vector<Object *> objects = defineObjects(meshFilenames);
 
 	Image image(width, height); // Create an image where we will store the result
 	vector<math::vec3> image_values(width * height);

@@ -149,7 +149,7 @@ public:
   }
 };
 
-std::vector<Object *> defineObjects() {
+inline std::vector<Object *> defineObjects(const std::vector<std::string> &meshFilenames) {
   std::vector<Object *> objects; 
 
 	Material green_diffuse;
@@ -199,12 +199,24 @@ std::vector<Object *> defineObjects() {
 	mesh_material.specular = glm::vec3(0.9f);
 	mesh_material.shininess = 50.0f;
 
-	// Mesh
-	Mesh *mesh = new Mesh("/home/leonardo/meshes/bunny_small.obj", mesh_material);
-	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -1.0f, 5.0f));
-	glm::mat4 scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
-	mesh->setTransformation(translation * scaling);
-	mesh->setTransformationTriangles(translation * scaling);
+  size_t nMeshes = meshFilenames.size();
+  float spacing = 5.0f;
+
+  for (size_t i = 0; i < nMeshes; i++) {
+    Mesh *mesh = new Mesh("/home/leonardo/meshes/" + meshFilenames[i] + ".obj", mesh_material);
+
+    float x_pos = 0.0f;
+    if (nMeshes > 1) {
+      x_pos = (i - (nMeshes - 1) / 2.0f) * spacing;
+    }
+
+    glm::mat4 translation = glm::translate(glm::vec3(x_pos, -1.0f, 5.0f));
+    glm::mat4 scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+    mesh->setTransformation(translation * scaling);
+    mesh->setTransformationTriangles(translation * scaling);
+
+    objects.push_back(mesh);
+  }
 
 	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0)));
 	objects.push_back(new Plane(glm::vec3(0, 1, 30), glm::vec3(0.0, 0.0, -1.0), green_diffuse));
@@ -212,8 +224,6 @@ std::vector<Object *> defineObjects() {
 	objects.push_back(new Plane(glm::vec3(15, 1, 0), glm::vec3(-1.0, 0.0, 0.0), blue_diffuse));
 	objects.push_back(new Plane(glm::vec3(0, 27, 0), glm::vec3(0.0, -1, 0)));
 	objects.push_back(new Plane(glm::vec3(0, 1, -0.01), glm::vec3(0.0, 0.0, 1.0), green_diffuse));
-
-	objects.push_back(mesh);
 
   return objects;
 }
