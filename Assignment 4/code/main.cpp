@@ -272,20 +272,35 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 
 	glm::vec3 color(0.0);
 	for(int light_num = 0; light_num < lights.size(); light_num++){
-
 		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
 		glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
 
 		float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
 		float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
-
 		glm::vec3 diffuse_color = material.diffuse;
 		glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
 		glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
 		
-        float r = glm::distance(point,lights[light_num]->position);
-        r = max(r, 0.1f);
-        color += lights[light_num]->color * (diffuse + specular) / r/r;
+        float lightDistance = glm::distance(point,lights[light_num]->position);
+
+		const float epsilon = 1e-4f;
+		Ray shadowRay(point + epsilon * light_direction, light_direction);
+		Hit closest_hit;
+		closest_hit.hit = false;
+		closest_hit.distance = INFINITY;
+		for(int k = 0; k<objects.size(); k++){
+			Hit hit = objects[k]->intersect(shadowRay);
+			if(hit.hit == true && hit.distance < closest_hit.distance)
+				closest_hit = hit;
+		}
+
+		float shadow = 1.0f;
+		if (closest_hit.hit && closest_hit.distance < lightDistance) {
+			shadow = 0.0f;
+		}
+
+		float r = max(lightDistance, 0.1f);
+        color += lights[light_num]->color * (diffuse + specular) * shadow / pow(r, 2.0f);
 	}
 	color += ambient_light * material.ambient;
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
