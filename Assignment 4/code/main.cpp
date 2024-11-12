@@ -10,6 +10,8 @@
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 
+#include <omp.h>
+
 #include "Image.h"
 #include "Material.h"
 
@@ -278,10 +280,8 @@ float trace_shadow_ray(Ray shadow_ray, float light_distance) {
 	return shadow;
 }
 
-int iteration = 0;
-int recursion_depth = 0;
 glm::vec3 trace_ray(Ray ray);
-glm::vec3 trace_refraction_ray(Ray ray);
+glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion);
 
 /** Function for computing color of an object according to the Phong Model
  @param point A point belonging to the object for which the color is computer
@@ -289,14 +289,13 @@ glm::vec3 trace_refraction_ray(Ray ray);
  @param view_direction A normalized direction from the point to the viewer/camera
  @param material A material structure representing the material of the object
 */
-glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material){
-
+glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material, int depth_recursion){
 	glm::vec3 color(0.0);
 	for(int light_num = 0; light_num < lights.size(); light_num++){
 		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
 		glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
 		float light_distance = glm::distance(point,lights[light_num]->position);
-		float epsilon = 0.2f;
+		float epsilon = 1e-4f;
 
 		float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
 		float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
@@ -309,7 +308,7 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 
 		if (material.reflectivity > 0.0f) {
 			Ray reflection_ray(point + epsilon * normal, reflected_direction);
-			glm::vec3 reflection_color = trace_refraction_ray(reflection_ray);
+			glm::vec3 reflection_color = trace_ray_recursive(reflection_ray, depth_recursion + 1);
 		}
 		
 		float r = max(light_distance, 0.1f);
@@ -332,31 +331,27 @@ void identifyObjectType(Object* object) {
     }
 }
 
-glm::vec3 trace_refraction_ray(Ray ray){
+#define MAX_DEPTH_RECURSION 10
 
+glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion){
 	Hit closest_hit;
 
 	closest_hit.hit = false;
 	closest_hit.distance = INFINITY;
-
+	
 	for(int k = 0; k<objects.size(); k++){
 		Hit hit = objects[k]->intersect(ray);
 		if(hit.hit == true && hit.distance < closest_hit.distance)
 			closest_hit = hit;
 	}
 
-	identifyObjectType(closest_hit.object);
-	cout << closest_hit.object->material.diffuse.x << " " << closest_hit.object->material.diffuse.y << " " << closest_hit.object->material.diffuse.z << " ";
-	cout << "intersected using ray " << ray.direction.x << " " << ray.direction.y << " " <<  ray.direction.z << endl;
-
-	if (recursion_depth == 9) {
-		int dfsd = 0;
-	}
+	// identifyObjectType(closest_hit.object);
+	// cout << closest_hit.object->material.diffuse.x << " " << closest_hit.object->material.diffuse.y << " " << closest_hit.object->material.diffuse.z << " ";
+	// cout << "intersected using ray " << ray.direction.x << " " << ray.direction.y << " " <<  ray.direction.z << endl;
 
 	glm::vec3 color(0.0);
-	if(closest_hit.hit && recursion_depth < 9){
-		recursion_depth++;
-		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
+	if(closest_hit.hit && depth_recursion < MAX_DEPTH_RECURSION){
+		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial(), depth_recursion);
 	}else{
 		color = glm::vec3(0.0, 0.0, 0.0);
 	}
@@ -369,25 +364,7 @@ glm::vec3 trace_refraction_ray(Ray ray){
  @return Color at the intersection point
  */
 glm::vec3 trace_ray(Ray ray){
-
-	Hit closest_hit;
-
-	closest_hit.hit = false;
-	closest_hit.distance = INFINITY;
-
-	for(int k = 0; k<objects.size(); k++){
-		Hit hit = objects[k]->intersect(ray);
-		if(hit.hit == true && hit.distance < closest_hit.distance)
-			closest_hit = hit;
-	}
-
-	glm::vec3 color(0.0);
-	if(closest_hit.hit){
-		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
-	}else{
-		color = glm::vec3(0.0, 0.0, 0.0);
-	}
-	return color;
+	return trace_ray_recursive(ray, 0);
 }
 /**
  Function defining the scene
@@ -449,8 +426,6 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
 	
-	
-	
 	// Cones
 	Material yellow_specular;
 	yellow_specular.ambient = glm::vec3(0.1f, 0.10f, 0.0f);
@@ -479,6 +454,7 @@ glm::vec3 toneMapping(glm::vec3 intensity){
 	return glm::clamp(alpha * glm::pow(intensity, glm::vec3(gamma)), glm::vec3(0.0), glm::vec3(1.0));
 }
 int main(int argc, const char * argv[]) {
+	omp_set_num_threads(12);
 
     clock_t t = clock(); // variable for keeping the time of the rendering
 
@@ -494,7 +470,8 @@ int main(int argc, const char * argv[]) {
     float s = 2*tan(0.5*fov/180*M_PI)/width;
     float X = -s * width / 2;
     float Y = s * height / 2;
-
+	int iteration = 0;
+	#pragma omp parallel for
     for(int i = 0; i < width ; i++)
         for(int j = 0; j < height ; j++){
 
@@ -505,13 +482,9 @@ int main(int argc, const char * argv[]) {
 			glm::vec3 origin(0, 0, 0);
             glm::vec3 direction(dx, dy, dz);
             direction = glm::normalize(direction);
-
+			cout << iteration++ << endl;
             Ray ray(origin, direction);
-			
-			recursion_depth = 0;
-			cout << iteration << endl;
             image.setPixel(i, j, toneMapping(trace_ray(ray)));
-			iteration++;
         }
 	
     t = clock() - t;
