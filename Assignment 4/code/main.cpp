@@ -289,49 +289,41 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion);
  @param view_direction A normalized direction from the point to the viewer/camera
  @param material A material structure representing the material of the object
 */
-glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material, int depth_recursion){
+glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir, Material material, int depth_recursion){
 	glm::vec3 color(0.0);
+	glm::vec3 phong_color;
+	glm::vec3 reflection_color;
 	for(int light_num = 0; light_num < lights.size(); light_num++){
-		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
-		glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
+		glm::vec3 to_light_dir = glm::normalize(lights[light_num]->position - point);
+		glm::vec3 reflected_from_light_dir = glm::reflect(-to_light_dir, normal);
+		glm::vec3 reflected_from_camera_dir = glm::reflect(-to_camera_dir, normal);
 		float light_distance = glm::distance(point,lights[light_num]->position);
 		float epsilon = 1e-4f;
 
-		float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
-		float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
+		float cosOmega = glm::clamp(glm::dot(normal, to_light_dir), 0.0f, 1.0f);
+		float cosAlpha = glm::clamp(glm::dot(to_camera_dir, reflected_from_light_dir), 0.0f, 1.0f);
 		glm::vec3 diffuse_color = material.diffuse;
-		glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
-		glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
+		glm::vec3 diffuse = diffuse_color * glm::vec3(cosOmega);
+		glm::vec3 specular = material.specular * glm::vec3(pow(cosAlpha, material.shininess));
 		
-		Ray shadow_ray(point + epsilon * normal, light_direction);
+		Ray shadow_ray(point + epsilon * normal, to_light_dir);
 		float shadow = trace_shadow_ray(shadow_ray, light_distance);
 
 		if (material.reflectivity > 0.0f) {
-			Ray reflection_ray(point + epsilon * normal, reflected_direction);
-			glm::vec3 reflection_color = trace_ray_recursive(reflection_ray, depth_recursion + 1);
+			Ray reflection_ray(point + epsilon * normal, reflected_from_camera_dir);
+			reflection_color = trace_ray_recursive(reflection_ray, depth_recursion + 1);
 		}
 		
 		float r = max(light_distance, 0.1f);
-        color += lights[light_num]->color * (diffuse + specular) * shadow / pow(r, 2.0f);
+        phong_color = lights[light_num]->color * (diffuse + specular) * shadow / pow(r, 2.0f);
+		color += phong_color * (1 - material.reflectivity) + reflection_color * material.reflectivity;
 	}
 	color += ambient_light * material.ambient;
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
 	return color;
 }
 
-void identifyObjectType(Object* object) {
-    if (dynamic_cast<Sphere*>(object)) {
-        std::cout << "Sphere ";
-    } else if (dynamic_cast<Plane*>(object)) {
-        std::cout << "Plane  ";
-    } else if (dynamic_cast<Cone*>(object)) {
-        std::cout << "Cone   ";
-    } else {
-        std::cout << "Unknown object type or nullptr.";
-    }
-}
-
-#define MAX_DEPTH_RECURSION 10
+#define DEPTH_RECURSION_LIMIT 10
 
 glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion){
 	Hit closest_hit;
@@ -350,7 +342,7 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion){
 	// cout << "intersected using ray " << ray.direction.x << " " << ray.direction.y << " " <<  ray.direction.z << endl;
 
 	glm::vec3 color(0.0);
-	if(closest_hit.hit && depth_recursion < MAX_DEPTH_RECURSION){
+	if(closest_hit.hit && depth_recursion < DEPTH_RECURSION_LIMIT){
 		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial(), depth_recursion);
 	}else{
 		color = glm::vec3(0.0, 0.0, 0.0);
@@ -410,7 +402,7 @@ void sceneDefinition (){
 	
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
-	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4)));
+	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.05)));
 	
     Material red_diffuse;
     red_diffuse.ambient = glm::vec3(0.09f, 0.06f, 0.06f);
@@ -424,7 +416,6 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(-15,1,0), glm::vec3(1.0,0.0,0.0), red_diffuse));
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
-    objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
 	
 	// Cones
 	Material yellow_specular;
@@ -453,13 +444,27 @@ glm::vec3 toneMapping(glm::vec3 intensity){
 	float alpha = 12.0f;
 	return glm::clamp(alpha * glm::pow(intensity, glm::vec3(gamma)), glm::vec3(0.0), glm::vec3(1.0));
 }
+
+void printProgress(float percentage) {
+  int barWidth = 70;
+
+  std::cout << "[";
+  int pos = barWidth * percentage;
+  for (int i = 0; i < barWidth; ++i) {
+    if (i < pos) std::cout << "▮";
+    else std::cout << ".";
+  }
+  std::cout << "] " << int(percentage * 100.0) << " %\r";
+  std::cout.flush();
+}
+
 int main(int argc, const char * argv[]) {
 	omp_set_num_threads(12);
 
     clock_t t = clock(); // variable for keeping the time of the rendering
 
-    int width = 320;//1024; //width of the image
-    int height = 240;//768; // height of the image
+    int width = 10000;//1024; //width of the image
+    int height = 10000;//768; // height of the image
     float fov = 90; // field of view
 
 	sceneDefinition(); // Let's define a scene
@@ -470,6 +475,8 @@ int main(int argc, const char * argv[]) {
     float s = 2*tan(0.5*fov/180*M_PI)/width;
     float X = -s * width / 2;
     float Y = s * height / 2;
+
+	int totalPixels = width * height;
 	int iteration = 0;
 	#pragma omp parallel for
     for(int i = 0; i < width ; i++)
@@ -482,11 +489,19 @@ int main(int argc, const char * argv[]) {
 			glm::vec3 origin(0, 0, 0);
             glm::vec3 direction(dx, dy, dz);
             direction = glm::normalize(direction);
-			cout << iteration++ << endl;
             Ray ray(origin, direction);
             image.setPixel(i, j, toneMapping(trace_ray(ray)));
+
+			if (iteration % (totalPixels / 100) == 0) {
+				#pragma omp critical
+				{
+					printProgress((float)iteration / totalPixels);
+				}
+			}
+			iteration++;
         }
 	
+	cout << endl;
     t = clock() - t;
     cout<<"It took " << ((float)t)/CLOCKS_PER_SEC<< " seconds to render the image."<< endl;
     cout<<"I could render at "<< (float)CLOCKS_PER_SEC/((float)t) << " frames per second."<<endl;
