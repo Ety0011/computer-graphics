@@ -261,6 +261,24 @@ vector<Light *> lights; ///< A list of lights in the scene
 glm::vec3 ambient_light(0.001,0.001,0.001);
 vector<Object *> objects; ///< A list of all objects in the scene
 
+float trace_shadow_ray(Ray shadow_ray, float light_distance) {
+	Hit closest_hit;
+	closest_hit.hit = false;
+	closest_hit.distance = INFINITY;
+	for(int k = 0; k<objects.size(); k++){
+		Hit hit = objects[k]->intersect(shadow_ray);
+		if(hit.hit == true && hit.distance < closest_hit.distance)
+			closest_hit = hit;
+	}
+
+	float shadow = 1.0f;
+	if (closest_hit.hit && closest_hit.distance < light_distance) {
+		shadow = 0.0f;
+	}
+	return shadow;
+}
+
+glm::vec3 trace_ray(Ray ray, int iteration);
 
 /** Function for computing color of an object according to the Phong Model
  @param point A point belonging to the object for which the color is computer
@@ -268,12 +286,14 @@ vector<Object *> objects; ///< A list of all objects in the scene
  @param view_direction A normalized direction from the point to the viewer/camera
  @param material A material structure representing the material of the object
 */
-glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material){
+glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material, int iteration){
 
 	glm::vec3 color(0.0);
 	for(int light_num = 0; light_num < lights.size(); light_num++){
 		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
 		glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
+		float light_distance = glm::distance(point,lights[light_num]->position);
+		float epsilon = 1e-4f;
 
 		float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
 		float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
@@ -281,25 +301,21 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 		glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
 		glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
 		
-        float lightDistance = glm::distance(point,lights[light_num]->position);
+		Ray shadow_ray(point + epsilon * light_direction, light_direction);
+		float shadow = trace_shadow_ray(shadow_ray, light_distance);
 
-		const float epsilon = 1e-4f;
-		Ray shadowRay(point + epsilon * light_direction, light_direction);
-		Hit closest_hit;
-		closest_hit.hit = false;
-		closest_hit.distance = INFINITY;
-		for(int k = 0; k<objects.size(); k++){
-			Hit hit = objects[k]->intersect(shadowRay);
-			if(hit.hit == true && hit.distance < closest_hit.distance)
-				closest_hit = hit;
+		if (iteration == 38557) {
+			float x = 10;
 		}
 
-		float shadow = 1.0f;
-		if (closest_hit.hit && closest_hit.distance < lightDistance) {
-			shadow = 0.0f;
+		if (material.reflectivity > 0.00001f) {
+			glm::vec3 p = point + epsilon * reflected_direction;
+			Ray reflection_ray(point + epsilon * reflected_direction, reflected_direction);
+			cout << "T ";
+			glm::vec3 reflection_color = trace_ray(reflection_ray, iteration);
 		}
-
-		float r = max(lightDistance, 0.1f);
+		
+		float r = max(light_distance, 0.1f);
         color += lights[light_num]->color * (diffuse + specular) * shadow / pow(r, 2.0f);
 	}
 	color += ambient_light * material.ambient;
@@ -312,7 +328,7 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
  @param ray Ray that should be traced through the scene
  @return Color at the intersection point
  */
-glm::vec3 trace_ray(Ray ray){
+glm::vec3 trace_ray(Ray ray, int iteration){
 
 	Hit closest_hit;
 
@@ -327,7 +343,7 @@ glm::vec3 trace_ray(Ray ray){
 
 	glm::vec3 color(0.0);
 	if(closest_hit.hit){
-		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
+		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial(), iteration);
 	}else{
 		color = glm::vec3(0.0, 0.0, 0.0);
 	}
@@ -354,7 +370,7 @@ void sceneDefinition (){
 	blue_specular.diffuse = glm::vec3(0.7f, 0.7f, 1.0f);
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
-	
+	blue_specular.reflectivity = 1.0;
 	
 	//Material green_diffuse;
 	green_diffuse.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
@@ -426,8 +442,8 @@ int main(int argc, const char * argv[]) {
 
     clock_t t = clock(); // variable for keeping the time of the rendering
 
-    int width = 1024; //width of the image
-    int height = 768; // height of the image
+    int width = 320;//1024; //width of the image
+    int height = 240;//768; // height of the image
     float fov = 90; // field of view
 
 	sceneDefinition(); // Let's define a scene
@@ -438,7 +454,7 @@ int main(int argc, const char * argv[]) {
     float s = 2*tan(0.5*fov/180*M_PI)/width;
     float X = -s * width / 2;
     float Y = s * height / 2;
-
+	int count = 0;
     for(int i = 0; i < width ; i++)
         for(int j = 0; j < height ; j++){
 
@@ -451,7 +467,9 @@ int main(int argc, const char * argv[]) {
             direction = glm::normalize(direction);
 
             Ray ray(origin, direction);
-            image.setPixel(i, j, toneMapping(trace_ray(ray)));
+			cout << "Interation: " << count << endl;
+            image.setPixel(i, j, toneMapping(trace_ray(ray, count)));
+			count++;
         }
 	
     t = clock() - t;
