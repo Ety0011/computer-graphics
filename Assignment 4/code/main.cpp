@@ -278,6 +278,7 @@ float trace_shadow_ray(Ray shadow_ray, float light_distance) {
 	return shadow;
 }
 
+int iteration = 0;
 int recursion_depth = 0;
 glm::vec3 trace_ray(Ray ray);
 glm::vec3 trace_refraction_ray(Ray ray);
@@ -295,7 +296,7 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
 		glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
 		float light_distance = glm::distance(point,lights[light_num]->position);
-		float epsilon = 1e-4f;
+		float epsilon = 0.2f;
 
 		float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
 		float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
@@ -303,12 +304,11 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 		glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
 		glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
 		
-		Ray shadow_ray(point + epsilon * light_direction, light_direction);
+		Ray shadow_ray(point + epsilon * normal, light_direction);
 		float shadow = trace_shadow_ray(shadow_ray, light_distance);
 
-		if (material.reflectivity > 0.00001f) {
-			glm::vec3 p = point + epsilon * reflected_direction;
-			Ray reflection_ray(point + epsilon * reflected_direction, reflected_direction);
+		if (material.reflectivity > 0.0f) {
+			Ray reflection_ray(point + epsilon * normal, reflected_direction);
 			glm::vec3 reflection_color = trace_refraction_ray(reflection_ray);
 		}
 		
@@ -318,6 +318,18 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 	color += ambient_light * material.ambient;
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
 	return color;
+}
+
+void identifyObjectType(Object* object) {
+    if (dynamic_cast<Sphere*>(object)) {
+        std::cout << "Sphere ";
+    } else if (dynamic_cast<Plane*>(object)) {
+        std::cout << "Plane  ";
+    } else if (dynamic_cast<Cone*>(object)) {
+        std::cout << "Cone   ";
+    } else {
+        std::cout << "Unknown object type or nullptr.";
+    }
 }
 
 glm::vec3 trace_refraction_ray(Ray ray){
@@ -333,12 +345,16 @@ glm::vec3 trace_refraction_ray(Ray ray){
 			closest_hit = hit;
 	}
 
-	if (recursion_depth > 9) {
-		float dfsd = 0.0;
+	identifyObjectType(closest_hit.object);
+	cout << closest_hit.object->material.diffuse.x << " " << closest_hit.object->material.diffuse.y << " " << closest_hit.object->material.diffuse.z << " ";
+	cout << "intersected using ray " << ray.direction.x << " " << ray.direction.y << " " <<  ray.direction.z << endl;
+
+	if (recursion_depth == 9) {
+		int dfsd = 0;
 	}
 
 	glm::vec3 color(0.0);
-	if(closest_hit.hit && recursion_depth > 9){
+	if(closest_hit.hit && recursion_depth < 9){
 		recursion_depth++;
 		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
 	}else{
@@ -493,7 +509,9 @@ int main(int argc, const char * argv[]) {
             Ray ray(origin, direction);
 			
 			recursion_depth = 0;
+			cout << iteration << endl;
             image.setPixel(i, j, toneMapping(trace_ray(ray)));
+			iteration++;
         }
 	
     t = clock() - t;
