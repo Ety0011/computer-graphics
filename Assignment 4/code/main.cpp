@@ -316,14 +316,14 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 		
 		float r = max(light_distance, 0.1f);
         phong_color = lights[light_num]->color * (diffuse + specular) * shadow / pow(r, 2.0f);
-		color += phong_color * (1 - material.reflectivity) + reflection_color * material.reflectivity * glm::vec3(1.0 / depth_recursion);
+		color += phong_color * (1 - material.reflectivity) + reflection_color * material.reflectivity;
 	}
 	color += ambient_light * material.ambient;
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
 	return color;
 }
 
-#define DEPTH_RECURSION_LIMIT 8
+#define DEPTH_RECURSION_LIMIT 10
 
 glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion){
 	Hit closest_hit;
@@ -356,7 +356,7 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion){
  @return Color at the intersection point
  */
 glm::vec3 trace_ray(Ray ray){
-	return trace_ray_recursive(ray, 1);
+	return trace_ray_recursive(ray, 0);
 }
 /**
  Function defining the scene
@@ -367,14 +367,12 @@ void sceneDefinition (){
 	Material green_diffuse;
 	green_diffuse.ambient = glm::vec3(0.7f, 0.9f, 0.7f);
 	green_diffuse.diffuse = glm::vec3(0.7f, 0.9f, 0.7f);
-	green_diffuse.reflectivity = 1.0;
 
 	Material red_specular;
 	red_specular.ambient = glm::vec3(1.0f, 0.3f, 0.3f);
 	red_specular.diffuse = glm::vec3(1.0f, 0.3f, 0.3f);
 	red_specular.specular = glm::vec3(0.5);
 	red_specular.shininess = 10.0;
-	red_specular.reflectivity = 1.0;
 
 	Material blue_specular;
 	blue_specular.ambient = glm::vec3(0.7f, 0.7f, 1.0f);
@@ -399,12 +397,8 @@ void sceneDefinition (){
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
 
-	blue_specular.reflectivity = 0.0;
-
 	objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
-
-	blue_specular.reflectivity = 1.0;
 	
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
@@ -413,27 +407,22 @@ void sceneDefinition (){
     Material red_diffuse;
     red_diffuse.ambient = glm::vec3(0.09f, 0.06f, 0.06f);
     red_diffuse.diffuse = glm::vec3(0.9f, 0.6f, 0.6f);
-	red_diffuse.reflectivity = 1.0;
         
     Material blue_diffuse;
     blue_diffuse.ambient = glm::vec3(0.06f, 0.06f, 0.09f);
     blue_diffuse.diffuse = glm::vec3(0.6f, 0.6f, 0.9f);
-	blue_diffuse.reflectivity = 1.0;
-
     objects.push_back(new Plane(glm::vec3(0,-3,0), glm::vec3(0.0,1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,30), glm::vec3(0.0,0.0,-1.0), green_diffuse));
     objects.push_back(new Plane(glm::vec3(-15,1,0), glm::vec3(1.0,0.0,0.0), red_diffuse));
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
-	objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
-
+	
 	// Cones
 	Material yellow_specular;
 	yellow_specular.ambient = glm::vec3(0.1f, 0.10f, 0.0f);
 	yellow_specular.diffuse = glm::vec3(0.4f, 0.4f, 0.0f);
 	yellow_specular.specular = glm::vec3(1.0);
 	yellow_specular.shininess = 100.0;
-	yellow_specular.reflectivity = 1.0;
 	
 	Cone *cone = new Cone(yellow_specular);
 	glm::mat4 translationMatrix = glm::translate(glm::vec3(5,9,14));
@@ -441,7 +430,7 @@ void sceneDefinition (){
 	glm::mat4 rotationMatrix = glm::rotate(glm::radians(180.0f) , glm::vec3(1,0,0));
 	cone->setTransformation(translationMatrix*scalingMatrix*rotationMatrix);
 	objects.push_back(cone);
-
+	
 	Cone *cone2 = new Cone(green_diffuse);
 	translationMatrix = glm::translate(glm::vec3(6,-3,7));
 	scalingMatrix = glm::scale(glm::vec3(1.0f, 3.0f, 1.0f));
@@ -474,8 +463,8 @@ int main(int argc, const char * argv[]) {
 
     clock_t t = clock(); // variable for keeping the time of the rendering
 
-    int width = 15360;//1024; //width of the image
-    int height = 8640;//768; // height of the image
+    int width = 10000;//1024; //width of the image
+    int height = 10000;//768; // height of the image
     float fov = 90; // field of view
 
 	sceneDefinition(); // Let's define a scene
