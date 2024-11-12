@@ -11,6 +11,7 @@
 #include "glm/gtx/transform.hpp"
 
 #include <omp.h>
+#include <iomanip>
 
 #include "Image.h"
 #include "Material.h"
@@ -446,23 +447,25 @@ glm::vec3 toneMapping(glm::vec3 intensity){
 	return glm::clamp(alpha * glm::pow(intensity, glm::vec3(gamma)), glm::vec3(0.0), glm::vec3(1.0));
 }
 
-void printProgress(float percentage) {
-  int barWidth = 70;
-
-  std::cout << "[";
-  int pos = barWidth * percentage;
-  for (int i = 0; i < barWidth; ++i) {
-    if (i < pos) std::cout << "▮";
-    else std::cout << ".";
-  }
-  std::cout << "] " << int(percentage * 100.0) << " %\r";
-  std::cout.flush();
+void printProgress(float progress, float eta_seconds) {
+    int barWidth = 70;
+    cout << "[";
+    int pos = barWidth * progress;
+    for (int i = 0; i < barWidth; ++i) {
+        if (i < pos) cout << "=";
+        else if (i == pos) cout << ">";
+        else cout << " ";
+    }
+    cout << "] " << int(progress * 100.0) << " %";
+    cout << " ETA: " << setw(4) << fixed << setprecision(1) << eta_seconds << "s  \r";
+    cout.flush();
 }
 
 int main(int argc, const char * argv[]) {
 	omp_set_num_threads(12);
 
     clock_t t = clock(); // variable for keeping the time of the rendering
+	clock_t start_time = clock();
 
     int width = 10000;//1024; //width of the image
     int height = 10000;//768; // height of the image
@@ -496,7 +499,17 @@ int main(int argc, const char * argv[]) {
 			if (iteration % (totalPixels / 100) == 0) {
 				#pragma omp critical
 				{
-					printProgress((float)iteration / totalPixels);
+					// Calculate progress
+					float progress = (float)(iteration) / totalPixels;
+					
+					// Calculate elapsed time
+					clock_t current_time = clock();
+					float elapsed_seconds = float(current_time - start_time) / CLOCKS_PER_SEC;
+					
+					// Estimate remaining time
+					float eta_seconds = (elapsed_seconds / progress) * (1 - progress);
+					
+					printProgress(progress, eta_seconds);
 				}
 			}
 			iteration++;
