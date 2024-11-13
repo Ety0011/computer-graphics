@@ -292,8 +292,6 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion);
 */
 glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir, Material material, int depth_recursion){
 	glm::vec3 color(0.0);
-	glm::vec3 reflection_color(0.0);
-	glm::vec3 reflected_from_camera_dir = glm::reflect(-to_camera_dir, normal);
 	float epsilon = 1e-4f;
 
 	for(int light_num = 0; light_num < lights.size(); light_num++){
@@ -315,11 +313,28 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 	}
 	color += ambient_light * material.ambient;
 
-	if (material.reflectivity > 0.0f) {
-		Ray reflection_ray(point + epsilon * normal, reflected_from_camera_dir);
-		reflection_color = trace_ray_recursive(reflection_ray, depth_recursion + 1);
+	if (material.reflection > 0.0f) {
+		glm::vec3 reflected_from_camera_dir = glm::reflect(-to_camera_dir, normal);
+		Ray reflected_ray(point + epsilon * normal, reflected_from_camera_dir);
+		glm::vec3 reflection_color = trace_ray_recursive(reflected_ray, depth_recursion + 1);
+		color = color * (1 - material.reflection) + reflection_color * material.reflection;
 	}
-	color = color * (1 - material.reflectivity) + reflection_color * material.reflectivity;
+	if (material.is_refractive) {
+		glm::vec3 n;
+		float index1 = 1.0f;
+		float index2 = 1.0f;
+		if (glm::dot(-to_camera_dir, normal) < 0.0f) {
+			index2 = material.refractive_index;
+			n = normal;
+		} else {
+			index1 = material.refractive_index;
+			n = -normal;
+		}
+		glm::vec3 refracted_form_camera_dir = glm::refract(-to_camera_dir, n, index1 / index2);
+		Ray refracted_ray(point + epsilon * -n, refracted_form_camera_dir);
+		glm::vec3 refraction_color = trace_ray_recursive(refracted_ray, depth_recursion + 1);
+		color = refraction_color;
+	}
 
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
 	return color;
@@ -381,7 +396,8 @@ void sceneDefinition (){
 	blue_specular.diffuse = glm::vec3(0.7f, 0.7f, 1.0f);
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
-	blue_specular.reflectivity = 1.0;
+	blue_specular.is_reflective = true;
+	blue_specular.reflection = 1.0;
 	
 	//Material green_diffuse;
 	green_diffuse.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
@@ -399,8 +415,13 @@ void sceneDefinition (){
 	blue_specular.specular = glm::vec3(0.6);
 	blue_specular.shininess = 100.0;
 
+	Material refraction;
+	refraction.is_refractive = true;
+	refraction.refractive_index = 2.0f;
+
 	objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
+	objects.push_back(new Sphere(2.0, glm::vec3(-3,-1,8), refraction));
 	
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
