@@ -292,14 +292,14 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion);
 */
 glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir, Material material, int depth_recursion){
 	glm::vec3 color(0.0);
-	glm::vec3 phong_color;
-	glm::vec3 reflection_color;
+	glm::vec3 reflection_color(0.0);
+	glm::vec3 reflected_from_camera_dir = glm::reflect(-to_camera_dir, normal);
+	float epsilon = 1e-4f;
+
 	for(int light_num = 0; light_num < lights.size(); light_num++){
 		glm::vec3 to_light_dir = glm::normalize(lights[light_num]->position - point);
 		glm::vec3 reflected_from_light_dir = glm::reflect(-to_light_dir, normal);
-		glm::vec3 reflected_from_camera_dir = glm::reflect(-to_camera_dir, normal);
 		float light_distance = glm::distance(point,lights[light_num]->position);
-		float epsilon = 1e-4f;
 
 		float cosOmega = glm::clamp(glm::dot(normal, to_light_dir), 0.0f, 1.0f);
 		float cosAlpha = glm::clamp(glm::dot(to_camera_dir, reflected_from_light_dir), 0.0f, 1.0f);
@@ -310,16 +310,17 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 		Ray shadow_ray(point + epsilon * normal, to_light_dir);
 		float shadow = trace_shadow_ray(shadow_ray, light_distance);
 
-		if (material.reflectivity > 0.0f) {
-			Ray reflection_ray(point + epsilon * normal, reflected_from_camera_dir);
-			reflection_color = trace_ray_recursive(reflection_ray, depth_recursion + 1);
-		}
-		
 		float r = max(light_distance, 0.1f);
-        phong_color = lights[light_num]->color * (diffuse + specular) * shadow / pow(r, 2.0f);
-		color += phong_color * (1 - material.reflectivity) + reflection_color * material.reflectivity;
+        color += lights[light_num]->color * (diffuse + specular) * shadow / pow(r, 2.0f);
 	}
 	color += ambient_light * material.ambient;
+
+	if (material.reflectivity > 0.0f) {
+		Ray reflection_ray(point + epsilon * normal, reflected_from_camera_dir);
+		reflection_color = trace_ray_recursive(reflection_ray, depth_recursion + 1);
+	}
+	color = color * (1 - material.reflectivity) + reflection_color * material.reflectivity;
+
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
 	return color;
 }
@@ -401,9 +402,9 @@ void sceneDefinition (){
 	objects.push_back(new Sphere(1.0, glm::vec3(1,-2,8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1,-2.5,6), red_specular));
 	
-	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
+	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
-	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.05)));
+	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4)));
 	
     Material red_diffuse;
     red_diffuse.ambient = glm::vec3(0.09f, 0.06f, 0.06f);
@@ -417,7 +418,6 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(-15,1,0), glm::vec3(1.0,0.0,0.0), red_diffuse));
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
-	objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
 	
 	// Cones
 	Material yellow_specular;
@@ -467,8 +467,8 @@ int main(int argc, const char * argv[]) {
     clock_t t = clock(); // variable for keeping the time of the rendering
 	clock_t start_time = clock();
 
-    int width = 10000;//1024; //width of the image
-    int height = 10000;//768; // height of the image
+    int width = 1024; //width of the image
+    int height = 768; // height of the image
     float fov = 90; // field of view
 
 	sceneDefinition(); // Let's define a scene
