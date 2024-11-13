@@ -12,6 +12,7 @@
 
 #include <omp.h>
 #include <iomanip>
+#include <algorithm>
 
 #include "Image.h"
 #include "Material.h"
@@ -265,20 +266,36 @@ glm::vec3 ambient_light(0.001,0.001,0.001);
 vector<Object *> objects; ///< A list of all objects in the scene
 
 float trace_shadow_ray(Ray shadow_ray, float light_distance) {
-	Hit closest_hit;
-	closest_hit.hit = false;
-	closest_hit.distance = INFINITY;
-	for(int k = 0; k<objects.size(); k++){
-		Hit hit = objects[k]->intersect(shadow_ray);
-		if(hit.hit == true && hit.distance < closest_hit.distance)
-			closest_hit = hit;
-	}
+    vector<Hit> hits;
 
-	float shadow = 1.0f;
-	if (closest_hit.hit && closest_hit.distance < light_distance) {
-		shadow = 0.0f;
-	}
-	return shadow;
+    for (int k = 0; k < objects.size(); k++) {
+        Hit hit = objects[k]->intersect(shadow_ray);
+        if (hit.hit) {
+            hits.push_back(hit);
+        }
+    }
+
+    sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) {
+        return a.distance < b.distance;
+    });
+
+    float shadow = 1.0f;
+
+    for (const Hit& hit : hits) {
+        if (hit.distance >= light_distance) {
+            break;
+        }
+
+		Material material = hit.object->material;
+        if (!material.is_refractive) {
+            shadow = 0.0f;
+            break;
+        } else {
+            shadow *= 0.9;
+        }
+    }
+
+    return shadow;
 }
 
 glm::vec3 trace_ray(Ray ray);
@@ -343,6 +360,11 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 #define DEPTH_RECURSION_LIMIT 10
 
 glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion){
+	glm::vec3 color(0.0);
+	if (depth_recursion > DEPTH_RECURSION_LIMIT) {
+		return color;
+	}
+
 	Hit closest_hit;
 
 	closest_hit.hit = false;
@@ -353,17 +375,11 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion){
 		if(hit.hit == true && hit.distance < closest_hit.distance)
 			closest_hit = hit;
 	}
-
-	// identifyObjectType(closest_hit.object);
-	// cout << closest_hit.object->material.diffuse.x << " " << closest_hit.object->material.diffuse.y << " " << closest_hit.object->material.diffuse.z << " ";
-	// cout << "intersected using ray " << ray.direction.x << " " << ray.direction.y << " " <<  ray.direction.z << endl;
-
-	glm::vec3 color(0.0);
-	if(closest_hit.hit && depth_recursion < DEPTH_RECURSION_LIMIT){
+	
+	if(closest_hit.hit){
 		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial(), depth_recursion);
-	}else{
-		color = glm::vec3(0.0, 0.0, 0.0);
 	}
+
 	return color;
 }
 
