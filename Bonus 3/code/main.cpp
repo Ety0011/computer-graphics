@@ -15,6 +15,7 @@
 
 #include "Image.h"
 #include "Material.h"
+#include <algorithm>
 
 using namespace std;
 
@@ -177,7 +178,7 @@ public:
         }
 		
 		return hit;
-	}
+    }
 };
 
 class Cone : public Object{
@@ -241,7 +242,56 @@ public:
 		hit.distance = glm::length(hit.intersection - ray.origin);
 		
 		return hit;
-	}
+    }
+};
+
+class AABB {
+public:
+    glm::vec3 minBounds;
+    glm::vec3 maxBounds;
+
+    AABB() : minBounds(glm::vec3(FLT_MAX)), maxBounds(glm::vec3(-FLT_MAX)) {}
+    AABB(const glm::vec3 &min, const glm::vec3 &max) : minBounds(min), maxBounds(max) {}
+
+    void expand(const glm::vec3 &point) {
+        minBounds = glm::min(minBounds, point);
+        maxBounds = glm::max(maxBounds, point);
+    }
+
+    void merge(const AABB &other) {
+        minBounds = glm::min(minBounds, other.minBounds);
+        maxBounds = glm::max(maxBounds, other.maxBounds);
+    }
+
+    bool intersect(const Ray &ray) {
+        float txmin = (minBounds.x - ray.origin.x) / ray.direction.x;
+        float txmax = (maxBounds.x - ray.origin.x) / ray.direction.x;
+        if (txmin > txmax) std::swap(txmin, txmax);
+
+        float tymin = (minBounds.y - ray.origin.y) / ray.direction.y;
+        float tymax = (maxBounds.y - ray.origin.y) / ray.direction.y;
+        if (tymin > tymax) std::swap(tymin, tymax);
+
+        float tzmin = (minBounds.z - ray.origin.z) / ray.direction.z;
+        float tzmax = (maxBounds.z - ray.origin.z) / ray.direction.z;
+        if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+		int overlapCount = 0;
+
+		if (txmin <= tymax && txmax >= tymin) {
+        	overlapCount++;
+		}
+
+		if (txmin <= tzmax && txmax >= tzmin) {
+			overlapCount++;
+		}
+
+		if (tymin <= tzmax && tymax >= tzmin) {
+			overlapCount++;
+		}
+
+		return overlapCount >= 2;
+    }
 };
 
 class Triangle : public Object{
@@ -252,17 +302,20 @@ private:
 	bool smoothSmoothing;
 
 public:
+	AABB boundingBox;
 	Triangle(array<glm::vec3, 3> vertices, Material material) : vertices(vertices) {
 		this->material = material;
 		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
 		plane = new Plane(vertices[0], normal);
 		smoothSmoothing = false;
+		calculateBoundingBox();
 	}
 	Triangle(array<glm::vec3, 3> vertices, array<glm::vec3, 3> normals, Material material) : vertices(vertices), normals(normals) {
 		this->material = material;
 		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
 		plane = new Plane(vertices[0], normal);
 		smoothSmoothing = true;
+		calculateBoundingBox();
 	}
 	Hit intersect(Ray ray){
 		
@@ -317,12 +370,29 @@ public:
 		hit.distance = glm::length(hit.intersection - ray.origin);
 		
 		return hit;
-	}
+    }
+
+	void calculateBoundingBox() {
+        boundingBox = AABB();
+        for (const auto& vertex : vertices) {
+            boundingBox.expand(vertex);
+        }
+    }
+};
+
+struct BVHNode {
+    AABB boundingBox;
+    BVHNode *left = nullptr;
+    BVHNode *right = nullptr;
+    vector<Triangle *> triangles;
+
+    bool isLeaf() const { return left == nullptr && right == nullptr; }
 };
 
 class Mesh : public Object {
 private:
-  	vector<Triangle> triangles;
+  	vector<Triangle *> triangles;
+	BVHNode *bvhRoot;
 	int smoothShading;
 
 public:
@@ -332,11 +402,12 @@ public:
 		if (!loadFromFile(filename)) {
             throw std::runtime_error("Failed to load mesh from file: " + filename);
         }
+		bvhRoot = buildBVH(triangles);
 	}
 
 	void setTransformationTriangles(glm::mat4 matrix){
-		for (auto &triangle : triangles) {
-			triangle.setTransformation(matrix);
+		for (Triangle* triangle : triangles) {
+			triangle->setTransformation(matrix);
 		}
 	}
 
@@ -405,13 +476,13 @@ public:
 					triangleVertices[i] = vertices[vIndices[i]];
 				}
 
-				Triangle triangle(triangleVertices, this->material);
+				Triangle* triangle = new Triangle(triangleVertices, this->material);
 				if (smoothShading == 1) {
 					array<glm::vec3, 3> triangleNormals;
 					for (int i = 0; i < 3; i++) {
 						triangleNormals[i] = normals[vnIndices[i]];
 					}
-					triangle = Triangle(triangleVertices, triangleNormals, this->material);
+					triangle = new Triangle(triangleVertices, triangleNormals, this->material);
 				}
 				
 				triangles.push_back(triangle);
@@ -421,20 +492,79 @@ public:
 		return true;
 	}
 
-  Hit intersect(Ray ray) {
-    Hit closest_hit;
-    closest_hit.hit = false;
-    closest_hit.distance = INFINITY;
+	Hit intersect(Ray ray) {
+		return traverseBVH(bvhRoot, ray);
+	}
 
-	for (int k = 0; k < triangles.size(); k++) {
-      Hit hit = triangles[k].intersect(ray);
-      if (hit.hit && hit.distance < closest_hit.distance) {
-        closest_hit = hit;
-      }
-    }
+	BVHNode *buildBVH(vector<Triangle *> &triangles) {
+		BVHNode *node = new BVHNode();
 
-    return closest_hit;
-  }
+		for (Triangle* triangle : triangles) {
+			node->boundingBox.merge(triangle->boundingBox);
+		}
+
+		if (triangles.size() <= 2) {
+			node->triangles = triangles;
+			return node;
+		}
+
+		glm::vec3 extent = node->boundingBox.maxBounds - node->boundingBox.minBounds;
+		int axis = extent.x > extent.y ? (extent.x > extent.z ? 0 : 2) : (extent.y > extent.z ? 1 : 2);
+
+		std::sort(
+			triangles.begin(),
+			triangles.end(),
+			[axis](Triangle *a, Triangle *b) {
+				return a->boundingBox.minBounds[axis] < b->boundingBox.minBounds[axis];
+			}
+		);
+
+		int mid = triangles.size() / 2;
+		vector<Triangle *> left(triangles.begin(), triangles.begin() + mid);
+		vector<Triangle *> right(triangles.begin() + mid, triangles.end());
+
+		node->left = buildBVH(left);
+		node->right = buildBVH(right);
+
+		return node;
+	}
+
+	Hit traverseBVH(BVHNode* node, const Ray& ray) {
+		Hit closestHit;
+		closestHit.hit = false;
+		closestHit.distance = INFINITY;
+
+		glm::vec3 tOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
+		glm::vec3 tDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
+		tDirection = glm::normalize(tDirection);
+		Ray new_ray = Ray(tOrigin, tDirection);
+
+		if (!node->boundingBox.intersect(new_ray)) {
+			return closestHit;
+		}
+
+		if (node->isLeaf()) {
+			for (Triangle* object : node->triangles) {
+				Hit hit = object->intersect(ray);
+				if (hit.hit && hit.distance < closestHit.distance) {
+					closestHit = hit;
+				}
+			}
+			return closestHit;
+		}
+
+		Hit leftHit = traverseBVH(node->left, ray);
+		Hit rightHit = traverseBVH(node->right, ray);
+
+		if (leftHit.hit && leftHit.distance < closestHit.distance) {
+			closestHit = leftHit;
+		}
+		if (rightHit.hit && rightHit.distance < closestHit.distance) {
+			closestHit = rightHit;
+		}
+
+		return closestHit;
+	}
 };
 
 /**
@@ -550,36 +680,27 @@ void sceneDefinition (){
 	white_diffuse.ambient = glm::vec3(0.09f);
     white_diffuse.diffuse = glm::vec3(0.5f);
 
-	// Mesh
 	glm::mat4 translation;
 	glm::mat4 scaling;
 	glm::mat4 rotation;
 
-	Mesh *bunny = new Mesh("../../../Assignment 3/code/meshes/bunny_with_normals.obj", white_diffuse);
+	Mesh *bunny = new Mesh("../../../Bonus 3/code/meshes/bunny_small.obj", white_diffuse);
 	translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
 	scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	bunny->setTransformation(translation * scaling);
 	bunny->setTransformationTriangles(translation * scaling);
 
-	Mesh *armadillo = new Mesh("../../../Assignment 3/code/meshes/armadillo.obj", white_diffuse);
+	Mesh *armadillo = new Mesh("../../../Bonus 3/code/meshes/armadillo_small.obj", white_diffuse);
 	translation = glm::translate(glm::vec3(-2.25f, -1.5f, 6.0f));
 	scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	armadillo->setTransformation(translation * scaling);
 	armadillo->setTransformationTriangles(translation * scaling);
 
-	Mesh *lucy = new Mesh("../../../Assignment 3/code/meshes/lucy.obj", white_diffuse);
+	Mesh *lucy = new Mesh("../../../Bonus 3/code/meshes/lucy_small.obj", white_diffuse);
 	translation = glm::translate(glm::vec3(2.25f, -1.5f, 6.0f));
 	scaling = glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
 	lucy->setTransformation(translation * scaling);
 	lucy->setTransformationTriangles(translation * scaling);
-
-	Mesh *pyramid = new Mesh("../../../Assignment 3/code/meshes/pyramid.obj", white_diffuse);
-	translation = glm::translate(glm::vec3(0.0f, -1.5f, 4.5f));
-	scaling = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
-	rotation = glm::rotate(glm::radians(-90.0f) , glm::vec3(1,0,0));
-	glm::mat4 rotation2 = glm::rotate(glm::radians(60.0f) , glm::vec3(0,1,0));
-	pyramid->setTransformation(translation * rotation2 * rotation * scaling);
-	pyramid->setTransformationTriangles(translation * rotation2 * rotation * scaling);
 
     objects.push_back(new Plane(glm::vec3(0,-3,0), glm::vec3(0.0,1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,30), glm::vec3(0.0,0.0,-1.0), green_diffuse));
@@ -587,7 +708,7 @@ void sceneDefinition (){
     objects.push_back(new Plane(glm::vec3(15,1,0), glm::vec3(-1.0,0.0,0.0), blue_diffuse));
     objects.push_back(new Plane(glm::vec3(0,27,0), glm::vec3(0.0,-1,0)));
     objects.push_back(new Plane(glm::vec3(0,1,-0.01), glm::vec3(0.0,0.0,1.0), green_diffuse));
-	objects.push_back(pyramid);
+	objects.push_back(bunny);
 	objects.push_back(armadillo);
 	objects.push_back(lucy);
 	
@@ -613,54 +734,54 @@ void printProgress(float percentage) {
 
 int main(int argc, const char * argv[]) {
 
-  clock_t t = clock(); // variable for keeping the time of the rendering
+	clock_t t = clock(); // variable for keeping the time of the rendering
 
-  int width = 1280;// 320; //width of the image
-  int height = 720;// 240; // height of the image
-  float fov = 90; // field of view
+	int width = 320; // width of the image
+	int height = 240; // height of the image
+	float fov = 90; // field of view
 
-  sceneDefinition(); // Let's define a scene
+	sceneDefinition(); // Let's define a scene
 
-  Image image(width,height); // Create an image where we will store the result
-  vector<glm::vec3> image_values(width*height);
+	Image image(width,height); // Create an image where we will store the result
+	vector<glm::vec3> image_values(width*height);
 
-  float s = 2*tan(0.5*fov/180*M_PI)/width;
-  float X = -s * width / 2;
-  float Y = s * height / 2;
+	float s = 2*tan(0.5*fov/180*M_PI)/width;
+	float X = -s * width / 2;
+	float Y = s * height / 2;
 
-  int totalPixels = width * height;
-  int processed = 0;
+	int totalPixels = width * height;
+	int processed = 0;
 
-  for(int i = 0; i < width ; i++)
-    for(int j = 0; j < height ; j++){
+	for(int i = 0; i < width ; i++)
+	for(int j = 0; j < height ; j++){
 
-      float dx = X + i*s + s/2;
-      float dy = Y - j*s - s/2;
-      float dz = 1;
+		float dx = X + i*s + s/2;
+		float dy = Y - j*s - s/2;
+		float dz = 1;
 
-      glm::vec3 origin(0, 0, 0);
-      glm::vec3 direction(dx, dy, dz);
-      direction = glm::normalize(direction);
+		glm::vec3 origin(0, 0, 0);
+		glm::vec3 direction(dx, dy, dz);
+		direction = glm::normalize(direction);
 
-      Ray ray(origin, direction);
+		Ray ray(origin, direction);
       image.setPixel(i, j, toneMapping(trace_ray(ray)));
 
-      processed++;
-      if (processed % (totalPixels / 100) == 0) 
-        printProgress((float)processed / totalPixels);
-    }
+		processed++;
+		if (processed % (totalPixels / 100) == 0) 
+		printProgress((float)processed / totalPixels);
+	}
 
-  t = clock() - t;
-  cout<<"It took " << ((float)t)/CLOCKS_PER_SEC<< " seconds to render the image."<< endl;
-  cout<<"I could render at "<< (float)CLOCKS_PER_SEC/((float)t) << " frames per second."<<endl;
+	t = clock() - t;
+	cout<<"It took " << ((float)t)/CLOCKS_PER_SEC<< " seconds to render the image."<< endl;
+	cout<<"I could render at "<< (float)CLOCKS_PER_SEC/((float)t) << " frames per second."<<endl;
 
-  // Writing the final results of the rendering
-  if (argc == 2){
-    image.writeImage(argv[1]);
-  }else{
-    image.writeImage("./result.ppm");
-  }
+	// Writing the final results of the rendering
+	if (argc == 2){
+	image.writeImage(argv[1]);
+	}else{
+	image.writeImage("./result.ppm");
+	}
 
 
-  return 0;
+	return 0;
 }
