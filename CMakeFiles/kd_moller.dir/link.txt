@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file,CMakeFiles/kd_moller.dir/link.d CMakeFiles/kd_moller.dir/Bonus1/code/main.cpp.o -o kd_moller

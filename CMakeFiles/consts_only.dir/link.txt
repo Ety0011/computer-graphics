@@ -1,1 +1,1 @@
-/usr/bin/c++ CMakeFiles/consts_only.dir/Bonus1/code/main.cpp.o -o consts_only 
+/usr/bin/c++ -g -Wl,--dependency-file,CMakeFiles/consts_only.dir/link.d CMakeFiles/consts_only.dir/Bonus1/code/main.cpp.o -o consts_only

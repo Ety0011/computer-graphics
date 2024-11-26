@@ -3,7 +3,7 @@ project(computer-graphics VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
-set(PROFILES vanilla consts_only)
+set(PROFILES vanilla consts_only bvh_moller)
 
 foreach(PROFILE ${PROFILES})
     file(GLOB SRCS "Bonus1/code/*.cpp" "Bonus1/code/${PROFILE}/*.cpp")

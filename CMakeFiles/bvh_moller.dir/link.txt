@@ -1,0 +1,1 @@
+/usr/bin/c++ -g -Wl,--dependency-file,CMakeFiles/bvh_moller.dir/link.d CMakeFiles/bvh_moller.dir/Bonus1/code/main.cpp.o -o bvh_moller

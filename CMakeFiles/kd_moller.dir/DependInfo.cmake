@@ -8,8 +8,8 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/leonardo/dev/uni/computer-graphics/Bonus1/code/main.cpp" "CMakeFiles/consts_only.dir/Bonus1/code/main.cpp.o" "gcc" "CMakeFiles/consts_only.dir/Bonus1/code/main.cpp.o.d"
-  "" "consts_only" "gcc" "CMakeFiles/consts_only.dir/link.d"
+  "/home/leonardo/dev/uni/computer-graphics/Bonus1/code/main.cpp" "CMakeFiles/kd_moller.dir/Bonus1/code/main.cpp.o" "gcc" "CMakeFiles/kd_moller.dir/Bonus1/code/main.cpp.o.d"
+  "" "kd_moller" "gcc" "CMakeFiles/kd_moller.dir/link.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

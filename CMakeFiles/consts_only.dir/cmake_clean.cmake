@@ -1,4 +1,5 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/consts_only.dir/link.d"
   "CMakeFiles/consts_only.dir/Bonus1/code/main.cpp.o"
   "CMakeFiles/consts_only.dir/Bonus1/code/main.cpp.o.d"
   "consts_only"

@@ -1,1 +1,1 @@
-/usr/bin/c++ CMakeFiles/vanilla.dir/Bonus1/code/main.cpp.o -o vanilla 
+/usr/bin/c++ -g -Wl,--dependency-file,CMakeFiles/vanilla.dir/link.d CMakeFiles/vanilla.dir/Bonus1/code/main.cpp.o -o vanilla
