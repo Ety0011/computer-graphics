@@ -684,6 +684,24 @@ vector<Light *> lights; ///< A list of lights in the scene
 glm::vec3 ambient_light(0.001, 0.001, 0.001);
 vector<Object *> objects; ///< A list of all objects in the scene
 
+float trace_shadow_ray(Ray shadow_ray, float light_distance)
+{
+	vector<Hit> hits;
+	float shadow = 1.0f;
+
+	for (int k = 0; k < objects.size(); k++)
+	{
+		Hit hit = objects[k]->intersect(shadow_ray);
+		if (hit.hit && hit.distance < light_distance)
+		{
+			shadow = 0.0f;
+			break;
+		}
+	}
+
+	return shadow;
+}
+
 /** Function for computing color of an object according to the Phong Model
  @param point A point belonging to the object for which the color is computer
  @param normal A normal vector the the point
@@ -692,8 +710,9 @@ vector<Object *> objects; ///< A list of all objects in the scene
 */
 glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material)
 {
-
 	glm::vec3 color(0.0);
+	float epsilon = 1e-4f;
+
 	for (int light_num = 0; light_num < lights.size(); light_num++)
 	{
 
@@ -707,9 +726,13 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction
 		glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
 		glm::vec3 specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
 
+		float light_distance = glm::distance(point, lights[light_num]->position);
+		Ray shadow_ray(point + epsilon * normal, light_direction);
+		float shadow = trace_shadow_ray(shadow_ray, light_distance);
+
 		float r = glm::distance(point, lights[light_num]->position);
 		r = max(r, 0.1f);
-		color += lights[light_num]->color * (diffuse + specular) / r / r;
+		color += lights[light_num]->color * (diffuse + specular) * shadow / r / r;
 	}
 	color += ambient_light * material.ambient;
 	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
