@@ -588,7 +588,7 @@ public:
 			node->boundingBox.merge(triangle->boundingBox);
 		}
 
-		if (triangles.size() <= 2)
+		if (triangles.size() <= 3)
 		{
 			node->triangles = triangles;
 			return node;
@@ -633,6 +633,7 @@ public:
 
 		if (node->isLeaf())
 		{
+			// TODO: should use function closest_hit(node->triangles)
 			for (Triangle *object : node->triangles)
 			{
 				Hit hit = object->intersect(ray);
