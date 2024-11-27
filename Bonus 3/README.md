@@ -1,18 +1,21 @@
 # Bonus assignment: Spatial Data Structures
 
-## Version A
+**Authors**: Etienne Orio, Leonardo Asaro
 
-In an image 320 x 240
+## Version A: Performance with and without bounding box optimization
 
-### without optimization
+Runs were performed with an image 320 x 240 while shadows were still not implemented.
 
-It took 212.082 seconds to render the image.
-I could render at 0.00471516 frames per second.
+- **Without bounding box optimization**:  
+  - Render Time: 212.082 seconds  
+  - Frames per Second: 0.0047 fps
 
-### with optimization
+- **With bounding box optimization**:  
+  - Render Time: 114.454 seconds  
+  - Frames per Second: 0.0087 fps
 
-It took 114.454 seconds to render the image.
-I could render at 0.00873713 frames per second.
+## Version B: Spatial data structure implementation
 
-## Version B
-
+- **With spatial data structure**:  
+  - Render Time: 8.592 seconds  
+  - Frames per Second: 0.116387 fps

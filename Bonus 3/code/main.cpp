@@ -294,39 +294,60 @@ public:
 
 	bool intersect(const Ray &ray)
 	{
-		float txmin = (minBounds.x - ray.origin.x) / ray.direction.x;
-		float txmax = (maxBounds.x - ray.origin.x) / ray.direction.x;
-		if (txmin > txmax)
-			std::swap(txmin, txmax);
+		glm::vec3 tmin = (minBounds - ray.origin) / ray.direction;
+		glm::vec3 tmax = (maxBounds - ray.origin) / ray.direction;
 
-		float tymin = (minBounds.y - ray.origin.y) / ray.direction.y;
-		float tymax = (maxBounds.y - ray.origin.y) / ray.direction.y;
-		if (tymin > tymax)
-			std::swap(tymin, tymax);
+		glm::vec3 tNear = glm::min(tmin, tmax);
+		glm::vec3 tFar = glm::max(tmin, tmax);
 
-		float tzmin = (minBounds.z - ray.origin.z) / ray.direction.z;
-		float tzmax = (maxBounds.z - ray.origin.z) / ray.direction.z;
-		if (tzmin > tzmax)
-			std::swap(tzmin, tzmax);
+		float tXmin = tNear.x;
+		float tXmax = tFar.x;
+		float tYmin = tNear.y;
+		float tYmax = tFar.y;
+		float tZmin = tNear.z;
+		float tZmax = tFar.z;
 
 		int overlapCount = 0;
 
-		if (txmin <= tymax && txmax >= tymin)
+		if (tXmin <= tYmax && tXmax >= tYmin)
 		{
 			overlapCount++;
 		}
 
-		if (txmin <= tzmax && txmax >= tzmin)
+		if (tXmin <= tZmax && tXmax >= tZmin)
 		{
 			overlapCount++;
 		}
 
-		if (tymin <= tzmax && tymax >= tzmin)
+		if (tYmin <= tZmax && tYmax >= tZmin)
 		{
 			overlapCount++;
 		}
 
 		return overlapCount >= 2;
+	}
+
+	float distanceTo(const Ray &ray)
+	{
+		glm::vec3 tmin = (minBounds - ray.origin) / ray.direction;
+		glm::vec3 tmax = (maxBounds - ray.origin) / ray.direction;
+
+		glm::vec3 tNear = glm::min(tmin, tmax);
+		glm::vec3 tFar = glm::max(tmin, tmax);
+
+		float tXmin = tNear.x;
+		float tXmax = tFar.x;
+		float tYmin = tNear.y;
+		float tYmax = tFar.y;
+		float tZmin = tNear.z;
+		float tZmax = tFar.z;
+
+		if (tXmax < 0 || tYmax < 0 || tZmax < 0)
+		{
+			return INFINITY;
+		}
+
+		return max(0.0f, max(tXmin, max(tYmin, tZmin)));
 	}
 };
 
@@ -450,7 +471,7 @@ public:
 		smoothShading = 0;
 		if (!loadFromFile(filename))
 		{
-			throw std::runtime_error("Failed to load mesh from file: " + filename);
+			throw runtime_error("Failed to load mesh from file: " + filename);
 		}
 		bvhRoot = buildBVH(triangles);
 	}
@@ -460,7 +481,7 @@ public:
 		smoothShading = 0;
 		if (!loadFromFile(filename))
 		{
-			throw std::runtime_error("Failed to load mesh from file: " + filename);
+			throw runtime_error("Failed to load mesh from file: " + filename);
 		}
 		bvhRoot = buildBVH(triangles);
 	}
@@ -597,7 +618,7 @@ public:
 		glm::vec3 extent = node->boundingBox.maxBounds - node->boundingBox.minBounds;
 		int axis = extent.x > extent.y ? (extent.x > extent.z ? 0 : 2) : (extent.y > extent.z ? 1 : 2);
 
-		std::sort(
+		sort(
 			triangles.begin(),
 			triangles.end(),
 			[axis](Triangle *a, Triangle *b)
@@ -633,7 +654,6 @@ public:
 
 		if (node->isLeaf())
 		{
-			// TODO: should use function closest_hit(node->triangles)
 			for (Triangle *object : node->triangles)
 			{
 				Hit hit = object->intersect(ray);
@@ -645,16 +665,38 @@ public:
 			return closestHit;
 		}
 
-		Hit leftHit = traverseBVH(node->left, ray);
-		Hit rightHit = traverseBVH(node->right, ray);
+		BVHNode *firstChild, *secondChild;
+		bool traverseLeftFirst;
 
-		if (leftHit.hit && leftHit.distance < closestHit.distance)
+		float leftDistance = node->left->boundingBox.distanceTo(ray);
+		float rightDistance = node->right->boundingBox.distanceTo(ray);
+
+		if (leftDistance < rightDistance)
 		{
-			closestHit = leftHit;
+			firstChild = node->left;
+			secondChild = node->right;
+			traverseLeftFirst = true;
 		}
-		if (rightHit.hit && rightHit.distance < closestHit.distance)
+		else
 		{
-			closestHit = rightHit;
+			firstChild = node->right;
+			secondChild = node->left;
+			traverseLeftFirst = false;
+		}
+
+		Hit firstHit = traverseBVH(firstChild, ray);
+		if (firstHit.hit && firstHit.distance < closestHit.distance)
+		{
+			closestHit = firstHit;
+		}
+
+		if (secondChild && secondChild->boundingBox.intersect(new_ray) && (closestHit.distance == INFINITY || secondChild->boundingBox.distanceTo(ray) < closestHit.distance))
+		{
+			Hit secondHit = traverseBVH(secondChild, ray);
+			if (secondHit.hit && secondHit.distance < closestHit.distance)
+			{
+				closestHit = secondHit;
+			}
 		}
 
 		return closestHit;
@@ -817,17 +859,17 @@ void printProgress(float percentage)
 {
 	int barWidth = 70; // Width of the progress bar
 
-	std::cout << "[";
+	cout << "[";
 	int pos = barWidth * percentage;
 	for (int i = 0; i < barWidth; ++i)
 	{
 		if (i < pos)
-			std::cout << "▮";
+			cout << "▮";
 		else
-			std::cout << ".";
+			cout << ".";
 	}
-	std::cout << "] " << int(percentage * 100.0) << " %\r";
-	std::cout.flush();
+	cout << "] " << int(percentage * 100.0) << " %\r";
+	cout.flush();
 }
 
 int main(int argc, const char *argv[])
