@@ -37,7 +37,7 @@
             var shader_program; // the GLSL program we will use for rendering
             var plane_vao;
             var cube_vao;
-
+            var sphere_vao;
 
             // The function initilize the WebGL canvas
             function initWebGL(){
@@ -135,9 +135,8 @@
                 cube_vao = gl.createVertexArray();
                 createVAO(cube_vao, shader_program, cube_vertices, cube_colors);
             
-                // Create and configure sphere VAO
-                // sphere_vao = gl.createVertexArray();
-                // createVAO(sphere_vao, shader_program, sphere_vertices, sphere_colors);
+                sphere_vao = gl.createVertexArray();
+                createVAO(sphere_vao, shader_program, sphere_vertices, sphere_colors);
             }
             
 
@@ -205,11 +204,11 @@
 
                 // draw cube 1
                 model_matrix = mat4.create();
-                mat4.scale(model_matrix, model_matrix, vec3.fromValues(0.1, 0.1, 0.1));
+                mat4.scale(model_matrix, model_matrix, vec3.fromValues(0.05, 0.05, 0.05));
                 mat4.rotateX(model_matrix, model_matrix, 0);
                 mat4.rotateY(model_matrix, model_matrix, 0);
                 mat4.rotateZ(model_matrix, model_matrix, 0);
-                mat4.translate(model_matrix, model_matrix, vec3.fromValues(3.0, 1.0, 0));
+                mat4.translate(model_matrix, model_matrix, vec3.fromValues(5.0, 1.0, 0));
                 gl.uniformMatrix4fv(model_matrix_location, false, model_matrix);
 
                 gl.bindVertexArray(cube_vao);
@@ -217,15 +216,27 @@
 
                 // draw cube 2
                 model_matrix = mat4.create();
-                mat4.scale(model_matrix, model_matrix, vec3.fromValues(0.1, 0.1, 0.1));
+                mat4.scale(model_matrix, model_matrix, vec3.fromValues(0.05, 0.05, 0.05));
                 mat4.rotateX(model_matrix, model_matrix, 0);
                 mat4.rotateY(model_matrix, model_matrix, 0);
                 mat4.rotateZ(model_matrix, model_matrix, 0);
-                mat4.translate(model_matrix, model_matrix, vec3.fromValues(-3.0, 1.0, 0));
+                mat4.translate(model_matrix, model_matrix, vec3.fromValues(-5.0, 1.0, 0));
                 gl.uniformMatrix4fv(model_matrix_location, false, model_matrix);
 
                 gl.bindVertexArray(cube_vao);
                 gl.drawArrays(gl.TRIANGLES, 0, cube_vertices.length/3);
+
+                // draw sphere
+                model_matrix = mat4.create();
+                mat4.scale(model_matrix, model_matrix, vec3.fromValues(0.1, 0.1, 0.1));
+                mat4.rotateX(model_matrix, model_matrix, 0);
+                mat4.rotateY(model_matrix, model_matrix, 0);
+                mat4.rotateZ(model_matrix, model_matrix, 0);
+                mat4.translate(model_matrix, model_matrix, vec3.fromValues(0, 0.5, 0));
+                gl.uniformMatrix4fv(model_matrix_location, false, model_matrix);
+
+                gl.bindVertexArray(sphere_vao);
+                gl.drawArrays(gl.TRIANGLES, 0, sphere_vertices.length/3);
 
                 // this line is required for creating an animation and updating the rendering
                 window.requestAnimationFrame(function() {draw();});
