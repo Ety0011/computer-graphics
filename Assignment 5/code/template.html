@@ -36,6 +36,7 @@
             var gl; // WebGL context
             var shader_program; // the GLSL program we will use for rendering
             var plane_vao;
+            var cube_vao;
 
 
             // The function initilize the WebGL canvas
@@ -131,17 +132,12 @@
                 plane_vao = gl.createVertexArray();
                 createVAO(plane_vao, shader_program, plane_vertices, plane_colors)
 
-                // Create and configure cube VAO
-                // const cube_vao = gl.createVertexArray();
-                // createVAO(cube_vao, shaderProgram, cube_vertices, cube_colors);
+                cube_vao = gl.createVertexArray();
+                createVAO(cube_vao, shader_program, cube_vertices, cube_colors);
             
                 // Create and configure sphere VAO
-                // const sphere_vao = gl.createVertexArray();
-                // createVAO(sphere_vao, shaderProgram, sphere_vertices, sphere_colors);
-            
-                // Create and configure plane VAO
-                // const plane_vao = gl.createVertexArray();
-                // createVAO(plane_vao, shaderProgram, plane_vertices, plane_colors);
+                // sphere_vao = gl.createVertexArray();
+                // createVAO(sphere_vao, shader_program, sphere_vertices, sphere_colors);
             }
             
 
@@ -184,26 +180,52 @@
                 
                 let projection_matrix_location = gl.getUniformLocation(shader_program, "projection_matrix");
                 let view_matrix_location = gl.getUniformLocation(shader_program, "view_matrix");
+                let model_matrix_location = gl.getUniformLocation(shader_program, "model_matrix");
+
                 let projection_matrix = mat4.create();
                 let view_matrix = mat4.create();
+                let model_matrix = mat4.create();
+
                 mat4.perspective(projection_matrix, camera_fov, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
                 mat4.lookAt(view_matrix, camera_position, vec3.fromValues(0, 0, 0), vec3.fromValues(0, 1, 0));
                 
                 gl.uniformMatrix4fv(projection_matrix_location, false, projection_matrix);
                 gl.uniformMatrix4fv(view_matrix_location, false, view_matrix);
-                
-                let model_matrix_location = gl.getUniformLocation(shader_program, "model_matrix");
-                let model_matrix = mat4.create();
+
+                // draw plane
                 mat4.scale(model_matrix, model_matrix, vec3.fromValues(1, 1, 1));
                 mat4.rotateX(model_matrix, model_matrix, 0);
                 mat4.rotateY(model_matrix, model_matrix, 0);
                 mat4.rotateZ(model_matrix, model_matrix, 0);
                 mat4.translate(model_matrix, model_matrix, vec3.fromValues(0, 0, 0));
-
                 gl.uniformMatrix4fv(model_matrix_location, false, model_matrix);
 
                 gl.bindVertexArray(plane_vao);
                 gl.drawArrays(gl.TRIANGLES, 0, plane_vertices.length/3);
+
+                // draw cube 1
+                model_matrix = mat4.create();
+                mat4.scale(model_matrix, model_matrix, vec3.fromValues(0.1, 0.1, 0.1));
+                mat4.rotateX(model_matrix, model_matrix, 0);
+                mat4.rotateY(model_matrix, model_matrix, 0);
+                mat4.rotateZ(model_matrix, model_matrix, 0);
+                mat4.translate(model_matrix, model_matrix, vec3.fromValues(3.0, 1.0, 0));
+                gl.uniformMatrix4fv(model_matrix_location, false, model_matrix);
+
+                gl.bindVertexArray(cube_vao);
+                gl.drawArrays(gl.TRIANGLES, 0, cube_vertices.length/3);
+
+                // draw cube 2
+                model_matrix = mat4.create();
+                mat4.scale(model_matrix, model_matrix, vec3.fromValues(0.1, 0.1, 0.1));
+                mat4.rotateX(model_matrix, model_matrix, 0);
+                mat4.rotateY(model_matrix, model_matrix, 0);
+                mat4.rotateZ(model_matrix, model_matrix, 0);
+                mat4.translate(model_matrix, model_matrix, vec3.fromValues(-3.0, 1.0, 0));
+                gl.uniformMatrix4fv(model_matrix_location, false, model_matrix);
+
+                gl.bindVertexArray(cube_vao);
+                gl.drawArrays(gl.TRIANGLES, 0, cube_vertices.length/3);
 
                 // this line is required for creating an animation and updating the rendering
                 window.requestAnimationFrame(function() {draw();});
