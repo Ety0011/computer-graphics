@@ -110,45 +110,52 @@
                 linkProgram(shaderProgram, vertexShader, fragmentShader);
             }
 
-
-            // TIP: Since one has to repeat creating VAO of each object (e.g., cube, plane, sphere) separately,
-            // we suggest to implement a function which takes the arrays containing values of the attributes,
-            // and then, creates VBOa, VAOs, and sets up the attributes.
-            // This should later simplify your code in initBuffers() to something like:
-            //      cube_vao = gl.createVertexArray();
-            //      createVAO(cube_vao, shaderProgram, cube_vertices, cube_normals, cube_colors);
-            //      sphere_vao = gl.createVertexArray();
-            //      createVAO(sphere_vao, shaderProgram, sphere_vertices, sphere_vertices, sphere_colors);
-            //      plane_vao = gl.createVertexArray();
-            //      createVAO(plane_vao, shaderProgram, plane_vertices, plane_normals, plane_colors);
-            function createVAO(vao, shader, vertices, colors){
-            }
-
-            function initBuffers(){
-                // a buffer for positions
-                var triangleVertexBuffer = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexBuffer);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangle_vertices), gl.STATIC_DRAW);
-
-                // a buffer for colors
-                var triangleColorBuffer = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, triangleColorBuffer);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangle_colors), gl.STATIC_DRAW);
-
-                // VAO for a triangle
-                triangle_vao = gl.createVertexArray();
-                gl.bindVertexArray(triangle_vao);
-
-                gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexBuffer);
-                var positionAttributeLocation = gl.getAttribLocation(shaderProgram, "a_position");
+            function createVAO(vao, shader, vertices, colors) {
+                // Bind the VAO
+                gl.bindVertexArray(vao);
+            
+                // Set up the vertex buffer
+                const vertexBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+            
+                // Link the vertex buffer to the shader attribute "a_position"
+                const positionAttributeLocation = gl.getAttribLocation(shader, "a_position");
                 gl.enableVertexAttribArray(positionAttributeLocation);
                 gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
-
-                gl.bindBuffer(gl.ARRAY_BUFFER, triangleColorBuffer);
-                var colorAttributeLocation = gl.getAttribLocation(shaderProgram, "a_color");
+            
+                // Set up the color buffer
+                const colorBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+            
+                // Link the color buffer to the shader attribute "a_color"
+                const colorAttributeLocation = gl.getAttribLocation(shader, "a_color");
                 gl.enableVertexAttribArray(colorAttributeLocation);
                 gl.vertexAttribPointer(colorAttributeLocation, 3, gl.FLOAT, false, 0, 0);
+            
+                // Unbind the VAO to ensure it is not accidentally modified
+                gl.bindVertexArray(null);
             }
+            
+
+            function initBuffers() {
+                triangle_vao = gl.createVertexArray();
+                createVAO(triangle_vao, shaderProgram, triangle_vertices, triangle_colors)
+
+                // Create and configure cube VAO
+                // const cube_vao = gl.createVertexArray();
+                // createVAO(cube_vao, shaderProgram, cube_vertices, cube_colors);
+            
+                // Create and configure sphere VAO
+                // const sphere_vao = gl.createVertexArray();
+                // createVAO(sphere_vao, shaderProgram, sphere_vertices, sphere_colors);
+            
+                // Create and configure plane VAO
+                // const plane_vao = gl.createVertexArray();
+                // createVAO(plane_vao, shaderProgram, plane_vertices, plane_colors);
+            }
+            
 
             function draw(){
                 // input variables for controling camera and light parameters
