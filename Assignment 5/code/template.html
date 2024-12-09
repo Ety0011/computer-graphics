@@ -33,22 +33,9 @@
                     out_color = vec4(v_color, 1.0);
                 }`;
 
-            
-            // vertices and colors of our traingle
-            var triangle_vertices = [
-                0.5, -0.5,  0.0,
-                0.0,  0.5,  0.0,
-                -0.5, -0.5,  0.0      
-            ];
-            var triangle_colors = [
-                1.0, 0.0,  0.0,
-                0.0,  1.0,  0.0,
-                0.0,  0.0,  1.0      
-            ];
-
             var gl; // WebGL context
             var shader_program; // the GLSL program we will use for rendering
-            var triangle_vao; // the vertex array object for the triangle
+            var plane_vao;
 
 
             // The function initilize the WebGL canvas
@@ -141,8 +128,8 @@
             
 
             function initBuffers() {
-                triangle_vao = gl.createVertexArray();
-                createVAO(triangle_vao, shader_program, triangle_vertices, triangle_colors)
+                plane_vao = gl.createVertexArray();
+                createVAO(plane_vao, shader_program, plane_vertices, plane_colors)
 
                 // Create and configure cube VAO
                 // const cube_vao = gl.createVertexArray();
@@ -209,11 +196,8 @@
                 gl.uniformMatrix4fv(view_matrix_location, false, view_matrix);
                 gl.uniformMatrix4fv(model_matrix_location, false, model_matrix);
 
-
-                // drawing the triangle, you can remove it
-                gl.bindVertexArray(triangle_vao);
-                gl.drawArrays(gl.TRIANGLES, 0, triangle_vertices.length/3);
-
+                gl.bindVertexArray(plane_vao);
+                gl.drawArrays(gl.TRIANGLES, 0, plane_vertices.length/3);
 
                 // this line is required for creating an animation and updating the rendering
                 window.requestAnimationFrame(function() {draw();});
