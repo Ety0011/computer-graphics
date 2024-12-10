@@ -1,5 +1,6 @@
 var vertexShaderCode =
     `#version 300 es
+
     in vec3 a_position;
     in vec3 a_color;
     in vec3 a_normal;
@@ -43,18 +44,17 @@ var fragmentShaderCode =
         vec3 normal = normalize(v_normal);
         vec3 light_dir = normalize(-light_direction);
         vec3 view_dir = normalize(view_position - v_position);
-
-        float diff = max(dot(normal, light_dir), 0.0);
-
-        vec3 reflection = reflect(-light_dir, normal);
-        float spec = pow(max(dot(reflection, view_dir), 0.0), shininess);
+        vec3 reflection_dir = reflect(-light_dir, normal);
 
         vec3 ambient = ambient_color * v_color;
-        vec3 diffuse = diff * light_color * v_color;
-        vec3 specular = spec * light_color; 
 
-        vec3 result_color = ambient + diffuse + specular;
-        out_color = vec4(result_color, 1.0);
+        float diffuse_angle = max(dot(normal, light_dir), 0.0);
+        vec3 diffuse = diffuse_angle * light_color * v_color;
+
+        float specular_angle = pow(max(dot(reflection_dir, view_dir), 0.0), shininess);
+        vec3 specular = specular_angle * light_color; 
+        
+        out_color = vec4(ambient + diffuse + specular, 1.0);
     }`;
 
 var gl; // WebGL context
