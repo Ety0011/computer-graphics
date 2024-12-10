@@ -170,6 +170,7 @@ var cube_normals = [
 //---------------------------
 var sphere_vertices = [];
 var sphere_colors = [];
+var sphere_normals;
 function create_sphere(){
     let step = 0.01;
     for(let u = 0; u < 1; u = u + step){
@@ -211,4 +212,4 @@ function create_sphere(){
 }
 
 create_sphere();
-var sphere_normals = sphere_vertices;
+sphere_normals = sphere_vertices;
