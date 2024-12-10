@@ -6,7 +6,7 @@ var vertexShaderCode =
 
     out vec3 v_color;
     out vec3 v_normal;
-    out vec3 v_frag_position;
+    out vec3 v_position;
 
     uniform mat4 projection_matrix;
     uniform mat4 view_matrix;
@@ -15,8 +15,7 @@ var vertexShaderCode =
     void main(){
         v_color = a_color;
 
-        vec4 world_pos = model_matrix * vec4(a_position, 1.0);
-        v_frag_position = world_pos.xyz;
+        v_position = vec3(model_matrix * vec4(a_position, 1.0));
 
         mat3 normal_matrix = transpose(inverse(mat3(model_matrix)));
         v_normal = normalize(normal_matrix * a_normal);
@@ -30,7 +29,7 @@ var fragmentShaderCode =
 
     in vec3 v_color;
     in vec3 v_normal;
-    in vec3 v_frag_position;
+    in vec3 v_position;
 
     out vec4 out_color;
 
@@ -43,19 +42,15 @@ var fragmentShaderCode =
     void main(){
         vec3 normal = normalize(v_normal);
         vec3 light_dir = normalize(-light_direction);
-        vec3 view_dir = normalize(view_position - v_frag_position);
+        vec3 view_dir = normalize(view_position - v_position);
 
         float diff = max(dot(normal, light_dir), 0.0);
 
         vec3 reflection = reflect(-light_dir, normal);
-        float spec = 0.0;
-        if (diff > 0.0) {
-            spec = pow(max(dot(reflection, view_dir), 0.0), shininess);
-        }
+        float spec = pow(max(dot(reflection, view_dir), 0.0), shininess);
 
         vec3 ambient = ambient_color * v_color;
         vec3 diffuse = diff * light_color * v_color;
-        // maybe change color
         vec3 specular = spec * light_color; 
 
         vec3 result_color = ambient + diffuse + specular;
@@ -215,43 +210,42 @@ function draw(){
     // - Before drawing anything using the program you still have to set values of all uniforms.
     // - As long as you use the same shader program you do not need to set all uniforms everytime you draw new object. The programs remembers the uniforms after calling gl.drawArrays
     // - The same, if you draw the same object, e.g., cube, multiple times, you do not need to bind the corresponding VAO everytime you draw, but you may want to change the transformation matrices.
-    
-    let projection_matrix_location = gl.getUniformLocation(shader_program, "projection_matrix");
-    let view_matrix_location = gl.getUniformLocation(shader_program, "view_matrix");
-    let model_matrix_location = gl.getUniformLocation(shader_program, "model_matrix");
 
+    // uniforms
     let light_direction_location = gl.getUniformLocation(shader_program, "light_direction");
-    let light_color_location = gl.getUniformLocation(shader_program, "light_color");
-    let ambient_color_location = gl.getUniformLocation(shader_program, "ambient_color");
-    let shininess_location = gl.getUniformLocation(shader_program, "shininess");
-    let view_position_location = gl.getUniformLocation(shader_program, "view_position");
-
-    let projection_matrix = mat4.create();
-    let view_matrix = mat4.create();
-
-    mat4.perspective(projection_matrix, camera_fov, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
-    mat4.lookAt(view_matrix, camera_position, vec3.fromValues(0, 0, 0), vec3.fromValues(0, 1, 0));
-
     gl.uniform3fv(light_direction_location, light_direction);
+
+    let light_color_location = gl.getUniformLocation(shader_program, "light_color");
     gl.uniform3fv(light_color_location, vec3.fromValues(0.5, 0.5, 0.5));
+
+    let ambient_color_location = gl.getUniformLocation(shader_program, "ambient_color");
     gl.uniform3fv(ambient_color_location, vec3.fromValues(0.1, 0.1, 0.1));
+
+    let shininess_location = gl.getUniformLocation(shader_program, "shininess");
     gl.uniform1f(shininess_location, 32);
+    
+    let view_position_location = gl.getUniformLocation(shader_program, "view_position");
     gl.uniform3fv(view_position_location, camera_position);
 
-    let model_matrix;
-
+    // transformation pipeline matrices
+    let projection_matrix_location = gl.getUniformLocation(shader_program, "projection_matrix");
+    let projection_matrix = mat4.create();
     mat4.perspective(projection_matrix, camera_fov, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
-    mat4.lookAt(view_matrix, camera_position, vec3.fromValues(0, 0, 0), vec3.fromValues(0, 1, 0));
-    
     gl.uniformMatrix4fv(projection_matrix_location, false, projection_matrix);
+
+    let view_matrix_location = gl.getUniformLocation(shader_program, "view_matrix");
+    let view_matrix = mat4.create();
+    mat4.lookAt(view_matrix, camera_position, vec3.fromValues(0, 0, 0), vec3.fromValues(0, 1, 0));
     gl.uniformMatrix4fv(view_matrix_location, false, view_matrix);
+
+    let model_matrix_location = gl.getUniformLocation(shader_program, "model_matrix");
+    let model_matrix;
 
     // draw plane
     model_matrix = mat4.create();
     mat4.translate(model_matrix, model_matrix, vec3.fromValues(0, -0.5, 0));
     mat4.scale(model_matrix, model_matrix, vec3.fromValues(20, 20, 20));
     gl.uniformMatrix4fv(model_matrix_location, false, model_matrix);
-
     gl.bindVertexArray(plane_vao);
     gl.drawArrays(gl.TRIANGLES, 0, plane_vertices.length/3);
 
