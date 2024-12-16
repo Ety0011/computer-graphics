@@ -665,38 +665,16 @@ public:
 			return closestHit;
 		}
 
-		BVHNode *firstChild, *secondChild;
-		bool traverseLeftFirst;
+		Hit leftHit = traverseBVH(node->left, ray);
+		Hit rightHit = traverseBVH(node->right, ray);
 
-		float leftDistance = node->left->boundingBox.distanceTo(ray);
-		float rightDistance = node->right->boundingBox.distanceTo(ray);
-
-		if (leftDistance < rightDistance)
+		if (leftHit.hit && leftHit.distance < closestHit.distance)
 		{
-			firstChild = node->left;
-			secondChild = node->right;
-			traverseLeftFirst = true;
+			closestHit = leftHit;
 		}
-		else
+		if (rightHit.hit && rightHit.distance < closestHit.distance)
 		{
-			firstChild = node->right;
-			secondChild = node->left;
-			traverseLeftFirst = false;
-		}
-
-		Hit firstHit = traverseBVH(firstChild, ray);
-		if (firstHit.hit && firstHit.distance < closestHit.distance)
-		{
-			closestHit = firstHit;
-		}
-
-		if (secondChild && secondChild->boundingBox.intersect(new_ray) && (closestHit.distance == INFINITY || secondChild->boundingBox.distanceTo(ray) < closestHit.distance))
-		{
-			Hit secondHit = traverseBVH(secondChild, ray);
-			if (secondHit.hit && secondHit.distance < closestHit.distance)
-			{
-				closestHit = secondHit;
-			}
+			closestHit = rightHit;
 		}
 
 		return closestHit;
