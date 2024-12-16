@@ -12,6 +12,8 @@
 
 #include <omp.h>
 #include <iomanip>
+#include <array>
+#include <sstream>
 #include <algorithm>
 #include <random>
 
@@ -114,7 +116,7 @@ public:
 	}
 	/** Functions for setting up all the transformation matrices
 	@param matrix The matrix representing the transformation of the object in the global coordinates */
-	void setTransformation(glm::mat4 matrix)
+	virtual void setTransformation(glm::mat4 matrix)
 	{
 
 		transformationMatrix = matrix;
@@ -300,6 +302,438 @@ public:
 		hit.distance = glm::length(hit.intersection - ray.origin);
 
 		return hit;
+	}
+};
+
+class AABB
+{
+public:
+	glm::vec3 minBounds;
+	glm::vec3 maxBounds;
+
+	AABB() : minBounds(glm::vec3(FLT_MAX)), maxBounds(glm::vec3(-FLT_MAX)) {}
+	AABB(const glm::vec3 &min, const glm::vec3 &max) : minBounds(min), maxBounds(max) {}
+
+	void expand(const glm::vec3 &point)
+	{
+		minBounds = glm::min(minBounds, point);
+		maxBounds = glm::max(maxBounds, point);
+	}
+
+	void merge(const AABB &other)
+	{
+		minBounds = glm::min(minBounds, other.minBounds);
+		maxBounds = glm::max(maxBounds, other.maxBounds);
+	}
+
+	bool intersect(const Ray &ray)
+	{
+		glm::vec3 tmin = (minBounds - ray.origin) / ray.direction;
+		glm::vec3 tmax = (maxBounds - ray.origin) / ray.direction;
+
+		glm::vec3 tNear = glm::min(tmin, tmax);
+		glm::vec3 tFar = glm::max(tmin, tmax);
+
+		float tXmin = tNear.x;
+		float tXmax = tFar.x;
+		float tYmin = tNear.y;
+		float tYmax = tFar.y;
+		float tZmin = tNear.z;
+		float tZmax = tFar.z;
+
+		int overlapCount = 0;
+
+		if (tXmin <= tYmax && tXmax >= tYmin)
+		{
+			overlapCount++;
+		}
+
+		if (tXmin <= tZmax && tXmax >= tZmin)
+		{
+			overlapCount++;
+		}
+
+		if (tYmin <= tZmax && tYmax >= tZmin)
+		{
+			overlapCount++;
+		}
+
+		return overlapCount >= 2;
+	}
+
+	float distanceTo(const Ray &ray)
+	{
+		glm::vec3 tmin = (minBounds - ray.origin) / ray.direction;
+		glm::vec3 tmax = (maxBounds - ray.origin) / ray.direction;
+
+		glm::vec3 tNear = glm::min(tmin, tmax);
+		glm::vec3 tFar = glm::max(tmin, tmax);
+
+		float tXmin = tNear.x;
+		float tXmax = tFar.x;
+		float tYmin = tNear.y;
+		float tYmax = tFar.y;
+		float tZmin = tNear.z;
+		float tZmax = tFar.z;
+
+		if (tXmax < 0 || tYmax < 0 || tZmax < 0)
+		{
+			return INFINITY;
+		}
+
+		return max(0.0f, max(tXmin, max(tYmin, tZmin)));
+	}
+};
+
+class Triangle : public Object
+{
+private:
+	Plane *plane;
+	array<glm::vec3, 3> vertices;
+	array<glm::vec3, 3> normals;
+	bool smoothSmoothing;
+
+public:
+	AABB boundingBox;
+	Triangle(array<glm::vec3, 3> vertices, Material material) : vertices(vertices)
+	{
+		this->material = material;
+		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+		plane = new Plane(vertices[0], normal);
+		smoothSmoothing = false;
+		calculateBoundingBox();
+	}
+	Triangle(array<glm::vec3, 3> vertices, array<glm::vec3, 3> normals, Material material) : vertices(vertices), normals(normals)
+	{
+		this->material = material;
+		glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+		plane = new Plane(vertices[0], normal);
+		smoothSmoothing = true;
+		calculateBoundingBox();
+	}
+	Hit intersect(Ray ray)
+	{
+
+		Hit hit;
+		hit.hit = false;
+
+		glm::vec3 tOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
+		glm::vec3 tDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
+		tDirection = glm::normalize(tDirection);
+
+		Hit hitPlane = plane->intersect(Ray(tOrigin, tDirection));
+		if (!hitPlane.hit)
+		{
+			return hit;
+		}
+		hit.intersection = hitPlane.intersection;
+		hit.normal = hitPlane.normal;
+
+		glm::vec3 p = hit.intersection;
+		array<glm::vec3, 3> ns;
+		glm::vec3 N = glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]);
+		for (int i = 0; i < 3; i++)
+		{
+			ns[i] = glm::cross(vertices[(i + 1) % 3] - p, vertices[(i + 2) % 3] - p);
+		}
+
+		array<float, 3> signes;
+		for (int i = 0; i < 3; i++)
+		{
+			float sign = glm::dot(N, ns[i]);
+			if (sign < 0)
+			{
+				return hit;
+			}
+			signes[i] = sign;
+		}
+
+		array<float, 3> barycentrics;
+		for (int i = 0; i < 3; i++)
+		{
+			barycentrics[i] = signes[i] / pow(glm::length(N), 2);
+		}
+
+		if (smoothSmoothing)
+		{
+			hit.normal = glm::normalize(
+				barycentrics[0] * normals[0] +
+				barycentrics[1] * normals[1] +
+				barycentrics[2] * normals[2]);
+		}
+
+		hit.hit = true;
+		hit.object = this;
+		hit.intersection = transformationMatrix * glm::vec4(hit.intersection, 1.0);
+		hit.normal = (normalMatrix * glm::vec4(hit.normal, 0.0));
+		hit.normal = glm::normalize(hit.normal);
+		hit.distance = glm::length(hit.intersection - ray.origin);
+
+		return hit;
+	}
+
+	void calculateBoundingBox()
+	{
+		boundingBox = AABB();
+		for (const auto &vertex : vertices)
+		{
+			boundingBox.expand(vertex);
+		}
+	}
+};
+
+struct BVHNode
+{
+	AABB boundingBox;
+	BVHNode *left = nullptr;
+	BVHNode *right = nullptr;
+	vector<Triangle *> triangles;
+
+	bool isLeaf() const { return left == nullptr && right == nullptr; }
+};
+
+class Mesh : public Object
+{
+private:
+	vector<Triangle *> triangles;
+	BVHNode *bvhRoot;
+	int smoothShading;
+
+public:
+	Mesh(const string &filename)
+	{
+		smoothShading = 0;
+		if (!loadFromFile(filename))
+		{
+			throw runtime_error("Failed to load mesh from file: " + filename);
+		}
+		bvhRoot = buildBVH(triangles);
+	}
+	Mesh(const string &filename, Material material)
+	{
+		this->material = material;
+		smoothShading = 0;
+		if (!loadFromFile(filename))
+		{
+			throw runtime_error("Failed to load mesh from file: " + filename);
+		}
+		bvhRoot = buildBVH(triangles);
+	}
+
+	void setTransformation(glm::mat4 matrix) override
+	{
+		transformationMatrix = matrix;
+		inverseTransformationMatrix = glm::inverse(matrix);
+		normalMatrix = glm::transpose(inverseTransformationMatrix);
+		setTransformationTriangles(matrix);
+	}
+
+	void setTransformationTriangles(glm::mat4 matrix)
+	{
+		for (Triangle *triangle : triangles)
+		{
+			triangle->setTransformation(matrix);
+		}
+	}
+
+	bool loadFromFile(const string &filename)
+	{
+		ifstream file(filename);
+		if (!file.is_open())
+		{
+			cerr << "Failed to open file: " << filename << endl;
+			return false;
+		}
+
+		vector<glm::vec3> vertices;
+		vector<glm::vec3> normals;
+		string line;
+		while (getline(file, line))
+		{
+			istringstream lineStream(line);
+			string prefix;
+			lineStream >> prefix;
+
+			if (prefix == "s")
+			{
+				bool x;
+				lineStream >> x;
+				smoothShading = x;
+			}
+			else if (prefix == "v")
+			{
+				float x, y, z;
+				lineStream >> x >> y >> z;
+				vertices.emplace_back(x, y, z);
+			}
+			else if (prefix == "vn")
+			{
+				float nx, ny, nz;
+				lineStream >> nx >> ny >> nz;
+				normals.emplace_back(nx, ny, nz);
+			}
+			else if (prefix == "f")
+			{
+				vector<int> vIndices;
+				vector<int> vnIndices;
+				string indexString;
+
+				while (lineStream >> indexString)
+				{
+					istringstream indexStream(indexString);
+					int vIndex, vtIndex, vnIndex;
+
+					indexStream >> vIndex;
+					vIndices.push_back(vIndex - 1);
+
+					if (indexStream.peek() != '/')
+					{
+						continue;
+					}
+					indexStream.ignore();
+
+					if (indexStream.peek() != '/')
+					{
+						indexStream >> vtIndex;
+					}
+
+					if (indexStream.peek() == '/')
+					{
+						indexStream.ignore();
+						indexStream >> vnIndex;
+						vnIndices.push_back(vnIndex - 1);
+					}
+				}
+
+				array<glm::vec3, 3> triangleVertices;
+				for (int i = 0; i < 3; i++)
+				{
+					triangleVertices[i] = vertices[vIndices[i]];
+				}
+
+				Triangle *triangle = new Triangle(triangleVertices, this->material);
+				if (smoothShading == 1)
+				{
+					array<glm::vec3, 3> triangleNormals;
+					for (int i = 0; i < 3; i++)
+					{
+						triangleNormals[i] = normals[vnIndices[i]];
+					}
+					triangle = new Triangle(triangleVertices, triangleNormals, this->material);
+				}
+
+				triangles.push_back(triangle);
+			}
+		}
+		file.close();
+		return true;
+	}
+
+	Hit intersect(Ray ray)
+	{
+		return traverseBVH(bvhRoot, ray);
+	}
+
+	BVHNode *buildBVH(vector<Triangle *> &triangles)
+	{
+		BVHNode *node = new BVHNode();
+
+		for (Triangle *triangle : triangles)
+		{
+			node->boundingBox.merge(triangle->boundingBox);
+		}
+
+		if (triangles.size() <= 3)
+		{
+			node->triangles = triangles;
+			return node;
+		}
+
+		glm::vec3 extent = node->boundingBox.maxBounds - node->boundingBox.minBounds;
+		int axis = extent.x > extent.y ? (extent.x > extent.z ? 0 : 2) : (extent.y > extent.z ? 1 : 2);
+
+		sort(
+			triangles.begin(),
+			triangles.end(),
+			[axis](Triangle *a, Triangle *b)
+			{
+				return a->boundingBox.minBounds[axis] < b->boundingBox.minBounds[axis];
+			});
+
+		int mid = triangles.size() / 2;
+		vector<Triangle *> left(triangles.begin(), triangles.begin() + mid);
+		vector<Triangle *> right(triangles.begin() + mid, triangles.end());
+
+		node->left = buildBVH(left);
+		node->right = buildBVH(right);
+
+		return node;
+	}
+
+	Hit traverseBVH(BVHNode *node, const Ray &ray)
+	{
+		Hit closestHit;
+		closestHit.hit = false;
+		closestHit.distance = INFINITY;
+
+		glm::vec3 tOrigin = inverseTransformationMatrix * glm::vec4(ray.origin, 1.0);
+		glm::vec3 tDirection = inverseTransformationMatrix * glm::vec4(ray.direction, 0.0);
+		tDirection = glm::normalize(tDirection);
+		Ray new_ray = Ray(tOrigin, tDirection);
+
+		if (!node->boundingBox.intersect(new_ray))
+		{
+			return closestHit;
+		}
+
+		if (node->isLeaf())
+		{
+			for (Triangle *object : node->triangles)
+			{
+				Hit hit = object->intersect(ray);
+				if (hit.hit && hit.distance < closestHit.distance)
+				{
+					closestHit = hit;
+				}
+			}
+			return closestHit;
+		}
+
+		BVHNode *firstChild, *secondChild;
+		bool traverseLeftFirst;
+
+		float leftDistance = node->left->boundingBox.distanceTo(ray);
+		float rightDistance = node->right->boundingBox.distanceTo(ray);
+
+		if (leftDistance < rightDistance)
+		{
+			firstChild = node->left;
+			secondChild = node->right;
+			traverseLeftFirst = true;
+		}
+		else
+		{
+			firstChild = node->right;
+			secondChild = node->left;
+			traverseLeftFirst = false;
+		}
+
+		Hit firstHit = traverseBVH(firstChild, ray);
+		if (firstHit.hit && firstHit.distance < closestHit.distance)
+		{
+			closestHit = firstHit;
+		}
+
+		if (secondChild && secondChild->boundingBox.intersect(new_ray) && (closestHit.distance == INFINITY || secondChild->boundingBox.distanceTo(ray) < closestHit.distance))
+		{
+			Hit secondHit = traverseBVH(secondChild, ray);
+			if (secondHit.hit && secondHit.distance < closestHit.distance)
+			{
+				closestHit = secondHit;
+			}
+		}
+
+		return closestHit;
 	}
 };
 
@@ -565,7 +999,6 @@ glm::vec3 trace_ray(Ray ray, int jump = 0)
 			// slide
 			glm::vec3 I_reflect = fresnel_reflect * reflect_color;
 			glm::vec3 I_refract = fresnel_refract * refract_color;
-			;
 			color = I_reflect + I_refract;
 		}
 		// our code ends
@@ -629,9 +1062,9 @@ void sceneDefinition()
 	yellow_specular.sigmaB = 0.1f;
 
 	// Oggetti della scena
-	objects.push_back(new Sphere(1.0, glm::vec3(1, -2, 8), blue_specular));	  // Blu speculare
-	objects.push_back(new Sphere(0.5, glm::vec3(-1, -2.5, 6), red_specular)); // Rosso speculare
-	objects.push_back(new Sphere(2, glm::vec3(-3, -1, 8), plastic));		  // Plastica (con rifrazione)
+	objects.push_back(new Sphere(1.0, glm::vec3(1, -2, 8), blue_specular)); // Blu speculare
+	objects.push_back(new Sphere(0.5, glm::vec3(0, -1, 2), red_specular));	// Rosso speculare
+	objects.push_back(new Sphere(2, glm::vec3(-3, -1, 8), plastic));		// Plastica (con rifrazione)
 
 	// Piani della scena
 	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0), plastic));
@@ -661,6 +1094,11 @@ void sceneDefinition()
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1f)));
 	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4f)));
+
+	Mesh *bunny = new Mesh("../../../Rendering Competition/code/meshes/bunny_small.obj");
+	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -3.0f, 8.0f));
+	bunny->setTransformation(translation);
+	objects.push_back(bunny);
 }
 
 glm::vec3 toneMapping(glm::vec3 intensity)
@@ -695,8 +1133,8 @@ int main(int argc, const char *argv[])
 	clock_t t = clock(); // variable for keeping the time of the rendering
 	clock_t start_time = clock();
 
-	int width = 1024;		   // width of the image
-	int height = 768;		   // height of the image
+	int width = 320;		   // width of the image
+	int height = 240;		   // height of the image
 	float fov = 90;			   // field of view
 	int samples_per_pixel = 4; // Number of samples per pixel
 
@@ -714,8 +1152,8 @@ int main(int argc, const char *argv[])
 	std::mt19937 gen(rd());
 	std::uniform_real_distribution<float> dis(-0.5f, 0.5f);
 	// Parametri Depth of Field
-	float aperture_radius = 0.1f; // Apertura della lente
-	float focus_distance = 5.0f;  // Distanza dal piano focale
+	float aperture_radius = 0.05f; // Apertura della lente
+	float focus_distance = 2.5f;   // Distanza dal piano focale
 
 	// Generatore di numeri casuali per l'apertura
 	std::uniform_real_distribution<float> aperture_dis(-0.5f, 0.5f);
