@@ -13,6 +13,7 @@
 #include <omp.h>
 #include <iomanip>
 #include <algorithm>
+#include <random>
 
 #include "Image.h"
 #include "Material.h"
@@ -551,6 +552,43 @@ void printProgress(float progress, float eta_seconds)
 	cout.flush();
 }
 
+glm::vec2 randomPointOnDisk(float radius)
+{
+	static std::default_random_engine generator;
+	static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+
+	float r = radius * sqrt(distribution(generator));	 // Disk radius
+	float theta = 2.0f * M_PI * distribution(generator); // Angle
+	return glm::vec2(r * cos(theta), r * sin(theta));
+}
+
+glm::vec3 depthOfFieldRayTrace(const Ray &primary_ray,
+							   float aperture_radius, float focal_length, int dof_samples)
+{
+	glm::vec3 color(0.0f);
+
+	for (int i = 0; i < dof_samples; i++)
+	{
+		// 1. Sample a point on the aperture (lens)
+		glm::vec2 lens_sample = randomPointOnDisk(aperture_radius);
+		glm::vec3 lens_point = primary_ray.origin + glm::vec3(lens_sample.x, lens_sample.y, 0.0f);
+
+		// 2. Compute the focal point
+		float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, 1)); // Assumes camera looks along Z
+		glm::vec3 focal_point = primary_ray.origin + t * primary_ray.direction;
+
+		// 3. Create a new ray toward the focal point
+		glm::vec3 new_direction = glm::normalize(focal_point - lens_point);
+		Ray new_ray(lens_point, new_direction);
+
+		// 4. Trace the new ray and accumulate color
+		color += trace_ray(new_ray);
+	}
+
+	// 5. Average the color
+	return color / float(dof_samples);
+}
+
 int main(int argc, const char *argv[])
 {
 	omp_set_num_threads(12);
@@ -558,8 +596,8 @@ int main(int argc, const char *argv[])
 	clock_t t = clock(); // variable for keeping the time of the rendering
 	clock_t start_time = clock();
 
-	int width = 1024; // width of the image
-	int height = 768; // height of the image
+	int width = 640;  // width of the image
+	int height = 480; // height of the image
 	float fov = 90;	  // field of view
 
 	sceneDefinition(); // Let's define a scene
@@ -573,20 +611,40 @@ int main(int argc, const char *argv[])
 
 	int totalPixels = width * height;
 	int iteration = 0;
+
+	int aa_samples = 1;	  // Supersampling for anti-aliasing
+	int dof_samples = 10; // Number of samples for depth of field
+	// DEFAULT 0.5f
+	float aperture_radius = 0.05f; // Controls the size of the blur (lens aperture)
+	// DEFAULT 8.0f
+	float focal_length = 8.0f; // Distance to the focal plane
+
 #pragma omp parallel for
 	for (int i = 0; i < width; i++)
 		for (int j = 0; j < height; j++)
 		{
+			glm::vec3 color(0.0f); // Accumulator for averaged color
 
-			float dx = X + i * s + s / 2;
-			float dy = Y - j * s - s / 2;
-			float dz = 1;
+			for (int k = 0; k < aa_samples; ++k)
+			{
+				float x_offset = rand() * (1.0f / RAND_MAX);
+				float y_offset = rand() * (1.0f / RAND_MAX);
 
-			glm::vec3 origin(0, 0, 0);
-			glm::vec3 direction(dx, dy, dz);
-			direction = glm::normalize(direction);
-			Ray ray(origin, direction);
-			image.setPixel(i, j, toneMapping(trace_ray(ray)));
+				float dx = X + (i + x_offset) * s + s / 2;
+				float dy = Y - (j + y_offset) * s - s / 2;
+				float dz = 1;
+
+				glm::vec3 origin(0, 0, 0);
+				glm::vec3 direction(dx, dy, dz);
+				direction = glm::normalize(direction);
+				Ray ray(origin, direction);
+
+				color += depthOfFieldRayTrace(ray, aperture_radius, focal_length, dof_samples);
+			}
+
+			color /= aa_samples;
+
+			image.setPixel(i, j, toneMapping(color));
 
 			if (iteration % (totalPixels / 100) == 0)
 			{
