@@ -280,12 +280,15 @@ class Light
 public:
 	glm::vec3 position; ///< Position of the light source
 	glm::vec3 color;	///< Color/intentisty of the light source
+	float radius;
 	Light(glm::vec3 position) : position(position)
 	{
 		color = glm::vec3(1.0);
+		radius = 1.0;
 	}
 	Light(glm::vec3 position, glm::vec3 color) : position(position), color(color)
 	{
+		radius = 1.0;
 	}
 };
 
@@ -338,6 +341,57 @@ float trace_shadow_ray(Ray shadow_ray, float light_distance)
 glm::vec3 trace_ray(Ray ray);
 glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion);
 
+glm::vec3 random_point_on_sphere()
+{
+	float theta = 2.0f * M_PI * static_cast<float>(rand()) / RAND_MAX;
+	float phi = acos(1.0f - 2.0f * static_cast<float>(rand()) / RAND_MAX);
+
+	float x = sin(phi) * cos(theta);
+	float y = sin(phi) * sin(theta);
+	float z = cos(phi);
+
+	return glm::vec3(x, y, z);
+}
+
+float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &light_position,
+						  float light_radius, int shadow_samples)
+{
+	int unblocked_rays = 0; // Count of successful rays
+
+	for (int i = 0; i < shadow_samples; i++)
+	{
+		// 1. Generate a random point on the light source surface
+		glm::vec3 random_point = light_position + light_radius * random_point_on_sphere();
+
+		// 2. Create a shadow ray
+		glm::vec3 light_direction = glm::normalize(random_point - intersection_point);
+		Ray shadow_ray(intersection_point + 1e-4f * light_direction, light_direction); // Avoid self-intersection
+
+		// 3. Check for intersection with scene objects
+		Hit closest_hit;
+		closest_hit.hit = false;
+		closest_hit.distance = INFINITY;
+
+		for (int k = 0; k < objects.size(); k++)
+		{
+			Hit hit = objects[k]->intersect(shadow_ray);
+			if (hit.hit == true && hit.distance < closest_hit.distance)
+			{
+				closest_hit = hit;
+			}
+		}
+
+		// 4. If no object blocks the light, the ray is unblocked
+		if (!closest_hit.hit || closest_hit.distance >= glm::distance(intersection_point, random_point))
+		{
+			unblocked_rays++;
+		}
+	}
+
+	// 5. Compute visibility term
+	return unblocked_rays / float(shadow_samples);
+}
+
 /** Function for computing color of an object according to the Phong Model
  @param point A point belonging to the object for which the color is computer
  @param normal A normal vector the the point
@@ -348,6 +402,7 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 {
 	glm::vec3 color(0.0);
 	float epsilon = 1e-4f;
+	int shadow_samples = 16;
 
 	for (int light_num = 0; light_num < lights.size(); light_num++)
 	{
@@ -361,11 +416,11 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 		glm::vec3 diffuse = diffuse_color * glm::vec3(cosOmega);
 		glm::vec3 specular = material.specular * glm::vec3(pow(cosAlpha, material.shininess));
 
-		Ray shadow_ray(point + epsilon * normal, to_light_dir);
-		float shadow = trace_shadow_ray(shadow_ray, light_distance);
+		// Compute soft shadow visibility term
+		float visibility = compute_soft_shadow(point, lights[light_num]->position, lights[light_num]->radius, shadow_samples);
 
 		float r = max(light_distance, 0.1f);
-		color += lights[light_num]->color * (diffuse + specular) * shadow / pow(r, 2.0f);
+		color += lights[light_num]->color * (diffuse + specular) * visibility / pow(r, 2.0f);
 	}
 	color += ambient_light * material.ambient;
 
@@ -612,8 +667,8 @@ int main(int argc, const char *argv[])
 	int totalPixels = width * height;
 	int iteration = 0;
 
-	int aa_samples = 1;	  // Supersampling for anti-aliasing
-	int dof_samples = 10; // Number of samples for depth of field
+	int aa_samples = 1;	 // Supersampling for anti-aliasing
+	int dof_samples = 1; // Number of samples for depth of field
 	// DEFAULT 0.5f
 	float aperture_radius = 0.05f; // Controls the size of the blur (lens aperture)
 	// DEFAULT 8.0f
