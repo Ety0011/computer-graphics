@@ -364,16 +364,27 @@ float trace_shadow_ray(Ray shadow_ray, float light_distance)
 glm::vec3 trace_ray(Ray ray);
 glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion);
 
-glm::vec3 random_point_on_sphere()
+glm::vec3 random_point_on_disk(float radius)
 {
-	float theta = 2.0f * M_PI * static_cast<float>(rand()) / RAND_MAX;
-	float phi = acos(1.0f - 2.0f * static_cast<float>(rand()) / RAND_MAX);
+	// Generate random polar coordinates
+	float theta = 2.0f * M_PI * float(rand()) / RAND_MAX; // Random angle [0, 2π]
+	float r = radius * sqrt(float(rand()) / RAND_MAX);	  // Random radius with sqrt for uniform distribution
 
-	float x = sin(phi) * cos(theta);
-	float y = sin(phi) * sin(theta);
-	float z = cos(phi);
+	// Convert polar to Cartesian coordinates
+	float x = r * cos(theta);
+	float z = r * sin(theta);
 
-	return glm::vec3(x, y, z);
+	// Disk lies on the XZ plane, Y is 0
+	return glm::vec3(x, 0.0f, z);
+}
+
+glm::vec3 random_point_on_square(float light_size)
+{
+	return glm::vec3(
+		(light_size * (rand() / (float)RAND_MAX - 0.5f)), // X offset
+		0.0f,											  // Y offset (flat square)
+		(light_size * (rand() / (float)RAND_MAX - 0.5f))  // Z offset
+	);
 }
 
 float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &light_position,
@@ -381,16 +392,28 @@ float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &
 {
 	int unblocked_rays = 0; // Count of successful rays
 
+	// Convert cone angle to cosine for comparison
+	float cone_angle_deg = 90.0f;
+	float cos_cone_angle = glm::cos(glm::radians(cone_angle_deg / 2.0f));
+
 	for (int i = 0; i < shadow_samples; i++)
 	{
 		// 1. Generate a random point on the light source surface
-		glm::vec3 random_point = light_position + light_radius * random_point_on_sphere();
+		glm::vec3 random_point = light_position + random_point_on_disk(light_radius);
 
 		// 2. Create a shadow ray
 		glm::vec3 light_direction = glm::normalize(random_point - intersection_point);
+
+		// // 3. Check if light_direction is within the cone
+		// glm::vec3 cone_direction = glm::vec3(0.0f, -1.0f, 0.0f); // Downward cone
+		// if (glm::dot(-light_direction, cone_direction) > cos_cone_angle)
+		// {
+		// 	continue; // Skip rays outside the cone
+		// }
+
 		Ray shadow_ray(intersection_point + 1e-4f * light_direction, light_direction); // Avoid self-intersection
 
-		// 3. Check for intersection with scene objects
+		// 4. Check for intersection with scene objects
 		Hit closest_hit;
 		closest_hit.hit = false;
 		closest_hit.distance = INFINITY;
@@ -398,20 +421,20 @@ float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &
 		for (int k = 0; k < objects.size(); k++)
 		{
 			Hit hit = objects[k]->intersect(shadow_ray);
-			if (hit.hit == true && hit.distance < closest_hit.distance)
+			if (hit.hit && hit.distance < closest_hit.distance)
 			{
 				closest_hit = hit;
 			}
 		}
 
-		// 4. If no object blocks the light, the ray is unblocked
+		// 5. If no object blocks the light, the ray is unblocked
 		if (!closest_hit.hit || closest_hit.distance >= glm::distance(intersection_point, random_point))
 		{
 			unblocked_rays++;
 		}
 	}
 
-	// 5. Compute visibility term
+	// 6. Compute visibility term
 	return unblocked_rays / float(shadow_samples);
 }
 
@@ -555,21 +578,37 @@ glm::vec3 trace_ray(Ray ray)
 void sceneDefinition()
 {
 
-	Material green_diffuse;
-	green_diffuse.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
-	green_diffuse.diffuse = glm::vec3(0.3f, 1.0f, 0.3f);
+	Material red_plane;
+	red_plane.diffuse = glm::vec3(1.0f, 0.2f, 0.2f);
+	red_plane.ambient = glm::vec3(0.01f, 0.02f, 0.02f);
+	red_plane.specular = glm::vec3(0.5);
+	red_plane.shininess = 10.0;
 
-	Material red_specular;
-	red_specular.diffuse = glm::vec3(1.0f, 0.2f, 0.2f);
-	red_specular.ambient = glm::vec3(0.01f, 0.02f, 0.02f);
-	red_specular.specular = glm::vec3(0.5);
-	red_specular.shininess = 10.0;
+	Material red_sphere;
+	red_sphere.diffuse = glm::vec3(1.0f, 0.2f, 0.2f);
+	red_sphere.ambient = glm::vec3(0.01f, 0.02f, 0.02f);
+	red_sphere.specular = glm::vec3(0.5);
+	red_sphere.shininess = 10.0;
+	red_sphere.is_anisotropic = true;
+	red_sphere.alpha_y = 0.8f;
 
-	Material blue_specular;
-	blue_specular.ambient = glm::vec3(0.02f, 0.02f, 0.1f);
-	blue_specular.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);
-	blue_specular.specular = glm::vec3(0.5);
-	blue_specular.shininess = 100.0;
+	Material blue_plane;
+	blue_plane.ambient = glm::vec3(0.02f, 0.02f, 0.1f);
+	blue_plane.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);
+	blue_plane.specular = glm::vec3(0.5);
+	blue_plane.shininess = 100.0;
+
+	Material blue_sphere;
+	blue_sphere.ambient = glm::vec3(0.02f, 0.02f, 0.1f);
+	blue_sphere.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);
+	blue_sphere.specular = glm::vec3(0.5);
+	blue_sphere.shininess = 100.0;
+
+	Material green_plane;
+	green_plane.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
+	green_plane.diffuse = glm::vec3(0.3f, 1.0f, 0.3f);
+	green_plane.specular = glm::vec3(0.5);
+	green_plane.shininess = 10;
 
 	Material green_sphere;
 	green_sphere.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
@@ -577,49 +616,28 @@ void sceneDefinition()
 	green_sphere.specular = glm::vec3(0.5);
 	green_sphere.shininess = 10;
 	green_sphere.is_anisotropic = true;
-	green_sphere.alpha_x = 0.5f;
+	green_sphere.alpha_x = 0.8f;
 
-	objects.push_back(new Sphere(1.0, glm::vec3(1, -2, 8), blue_specular));
-	objects.push_back(new Sphere(0.5, glm::vec3(-1, -2.5, 6), red_specular));
-	objects.push_back(new Sphere(2.0, glm::vec3(-4, -1, 8), green_sphere));
+	// Spheres
+	objects.push_back(new Sphere(1.0, glm::vec3(-2, -1, 5), green_sphere));
+	objects.push_back(new Sphere(0.5, glm::vec3(0, -2.5, 4), blue_sphere));
+	objects.push_back(new Sphere(0.5, glm::vec3(1.5, -2.5, 3), red_sphere));
 
-	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0)));
-	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
-	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4)));
+	// Lights
+	lights.push_back(new Light(glm::vec3(0, 2.5, 3), glm::vec3(0.1)));
 
-	Material red_diffuse;
-	red_diffuse.ambient = glm::vec3(0.09f, 0.06f, 0.06f);
-	red_diffuse.diffuse = glm::vec3(0.9f, 0.6f, 0.6f);
+	// Planes
 
-	Material blue_diffuse;
-	blue_diffuse.ambient = glm::vec3(0.06f, 0.06f, 0.09f);
-	blue_diffuse.diffuse = glm::vec3(0.6f, 0.6f, 0.9f);
+	// planes above and below
 	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0)));
-	objects.push_back(new Plane(glm::vec3(0, 1, 30), glm::vec3(0.0, 0.0, -1.0), green_diffuse));
-	objects.push_back(new Plane(glm::vec3(-15, 1, 0), glm::vec3(1.0, 0.0, 0.0), red_diffuse));
-	objects.push_back(new Plane(glm::vec3(15, 1, 0), glm::vec3(-1.0, 0.0, 0.0), blue_diffuse));
-	objects.push_back(new Plane(glm::vec3(0, 27, 0), glm::vec3(0.0, -1, 0)));
+	objects.push_back(new Plane(glm::vec3(0, 3, 0), glm::vec3(0.0, -1, 0)));
 
-	// Cones
-	Material yellow_specular;
-	yellow_specular.ambient = glm::vec3(0.1f, 0.10f, 0.0f);
-	yellow_specular.diffuse = glm::vec3(0.4f, 0.4f, 0.0f);
-	yellow_specular.specular = glm::vec3(1.0);
-	yellow_specular.shininess = 100.0;
+	// planes right and left
+	objects.push_back(new Plane(glm::vec3(-3, 0, 0), glm::vec3(1.0, 0.0, 0.0), red_plane));
+	objects.push_back(new Plane(glm::vec3(3, 0, 0), glm::vec3(-1.0, 0.0, 0.0), blue_plane));
 
-	Cone *cone = new Cone(yellow_specular);
-	glm::mat4 translationMatrix = glm::translate(glm::vec3(5, 9, 14));
-	glm::mat4 scalingMatrix = glm::scale(glm::vec3(3.0f, 12.0f, 3.0f));
-	glm::mat4 rotationMatrix = glm::rotate(glm::radians(180.0f), glm::vec3(1, 0, 0));
-	cone->setTransformation(translationMatrix * scalingMatrix * rotationMatrix);
-	objects.push_back(cone);
-
-	Cone *cone2 = new Cone(green_diffuse);
-	translationMatrix = glm::translate(glm::vec3(6, -3, 7));
-	scalingMatrix = glm::scale(glm::vec3(1.0f, 3.0f, 1.0f));
-	rotationMatrix = glm::rotate(glm::atan(3.0f), glm::vec3(0, 0, 1));
-	cone2->setTransformation(translationMatrix * rotationMatrix * scalingMatrix);
-	objects.push_back(cone2);
+	// plane front
+	objects.push_back(new Plane(glm::vec3(0, 0, 6), glm::vec3(0.0, 0.0, -1.0), green_plane));
 }
 glm::vec3 toneMapping(glm::vec3 intensity)
 {
@@ -691,8 +709,8 @@ int main(int argc, const char *argv[])
 	clock_t t = clock(); // variable for keeping the time of the rendering
 	clock_t start_time = clock();
 
-	int width = 640;  // width of the image
-	int height = 480; // height of the image
+	int width = 500;  // width of the image
+	int height = 500; // height of the image
 	float fov = 90;	  // field of view
 
 	sceneDefinition(); // Let's define a scene
@@ -707,12 +725,12 @@ int main(int argc, const char *argv[])
 	int totalPixels = width * height;
 	int iteration = 0;
 
-	int aa_samples = 1;	 // Supersampling for anti-aliasing
-	int dof_samples = 1; // Number of samples for depth of field
+	int aa_samples = 10;  // Supersampling for anti-aliasing
+	int dof_samples = 10; // Number of samples for depth of field
 	// DEFAULT 0.5f
 	float aperture_radius = 0.05f; // Controls the size of the blur (lens aperture)
 	// DEFAULT 8.0f
-	float focal_length = 8.0f; // Distance to the focal plane
+	float focal_length = 3.0f; // Distance to the focal plane
 
 #pragma omp parallel for
 	for (int i = 0; i < width; i++)
