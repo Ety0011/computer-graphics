@@ -808,6 +808,18 @@ glm::vec3 WardSpecular(glm::vec3 normal, glm::vec3 viewDir, glm::vec3 lightDir, 
  */
 void sceneDefinition()
 {
+	Material green_diffuse;
+	green_diffuse.ambient = glm::vec3(0.5f, 1.0f, 0.5f);
+	green_diffuse.diffuse = glm::vec3(0.5f, 1.0f, 0.5f);
+
+	Material blue_diffuse;
+	blue_diffuse.ambient = glm::vec3(0.5f, 0.5f, 1.0f);
+	blue_diffuse.diffuse = glm::vec3(0.5f, 0.5f, 1.0f);
+
+	Material red_diffuse;
+	red_diffuse.ambient = glm::vec3(1.0f, 0.5f, 0.5f);
+	red_diffuse.diffuse = glm::vec3(1.0f, 0.5f, 0.5f);
+
 	glm::mat4 translation;
 	glm::mat4 scaling;
 	glm::mat4 rotation;
@@ -832,9 +844,9 @@ void sceneDefinition()
 	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4)));
 
 	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0)));
-	objects.push_back(new Plane(glm::vec3(0, 1, 30), glm::vec3(0.0, 0.0, -1.0)));
-	objects.push_back(new Plane(glm::vec3(-15, 1, 0), glm::vec3(1.0, 0.0, 0.0)));
-	objects.push_back(new Plane(glm::vec3(15, 1, 0), glm::vec3(-1.0, 0.0, 0.0)));
+	objects.push_back(new Plane(glm::vec3(0, 1, 30), glm::vec3(0.0, 0.0, -1.0), green_diffuse));
+	objects.push_back(new Plane(glm::vec3(-15, 1, 0), glm::vec3(1.0, 0.0, 0.0), red_diffuse));
+	objects.push_back(new Plane(glm::vec3(15, 1, 0), glm::vec3(-1.0, 0.0, 0.0), blue_diffuse));
 	objects.push_back(new Plane(glm::vec3(0, 27, 0), glm::vec3(0.0, -1, 0)));
 	objects.push_back(new Plane(glm::vec3(0, 1, -0.01), glm::vec3(0.0, 0.0, 1.0)));
 
@@ -973,33 +985,6 @@ glm::vec3 trace_ray(Ray ray)
 	return color;
 }
 
-glm::vec3 depthOfFieldRayTrace(const Ray &primary_ray, const glm::vec3 &camera_position,
-							   float aperture_radius, float focal_length, int samples)
-{
-	glm::vec3 color(0.0f);
-
-	for (int i = 0; i < samples; i++)
-	{
-		// 1. Sample a point on the aperture (lens)
-		glm::vec2 lens_sample = randomPointOnDisk(aperture_radius);
-		glm::vec3 lens_point = camera_position + glm::vec3(lens_sample.x, lens_sample.y, 0.0f);
-
-		// 2. Compute the focal point
-		float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, 1)); // Assumes camera looks along Z
-		glm::vec3 focal_point = primary_ray.origin + t * primary_ray.direction;
-
-		// 3. Create a new ray toward the focal point
-		glm::vec3 new_direction = glm::normalize(focal_point - lens_point);
-		Ray new_ray(lens_point, new_direction);
-
-		// 4. Trace the new ray and accumulate color
-		color += trace_ray(new_ray);
-	}
-
-	// 5. Average the color
-	return color / float(samples);
-}
-
 void printProgress(float progress, float eta_seconds)
 {
 	int barWidth = 70;
@@ -1079,6 +1064,33 @@ void emitPhotons(int numPhotons)
 	}
 }
 
+glm::vec3 depthOfFieldRayTrace(const Ray &primary_ray, const glm::vec3 &camera_position,
+							   float aperture_radius, float focal_length, int dof_samples)
+{
+	glm::vec3 color(0.0f);
+
+	for (int i = 0; i < dof_samples; i++)
+	{
+		// 1. Sample a point on the aperture (lens)
+		glm::vec2 lens_sample = randomPointOnDisk(aperture_radius);
+		glm::vec3 lens_point = camera_position + glm::vec3(lens_sample.x, lens_sample.y, 0.0f);
+
+		// 2. Compute the focal point
+		float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, 1)); // Assumes camera looks along Z
+		glm::vec3 focal_point = primary_ray.origin + t * primary_ray.direction;
+
+		// 3. Create a new ray toward the focal point
+		glm::vec3 new_direction = glm::normalize(focal_point - lens_point);
+		Ray new_ray(lens_point, new_direction);
+
+		// 4. Trace the new ray and accumulate color
+		color += trace_ray(new_ray);
+	}
+
+	// 5. Average the color
+	return color / float(dof_samples);
+}
+
 int main(int argc, const char *argv[])
 {
 	clock_t t = clock(); // Variable for keeping the time of the rendering
@@ -1115,9 +1127,8 @@ int main(int argc, const char *argv[])
 		{
 			glm::vec3 color(0.0f); // Accumulator for averaged color
 
-			// Supersampling for anti-aliasing
-			int dof_samples = 5; // Number of samples for depth of field
-			for (int k = 0; k < dof_samples; ++k)
+			int samples = 1; // Supersampling for anti-aliasing
+			for (int k = 0; k < samples; ++k)
 			{
 				float u = static_cast<float>(rand()) / RAND_MAX; // Random offset in pixel
 				float v = static_cast<float>(rand()) / RAND_MAX;
@@ -1135,13 +1146,14 @@ int main(int argc, const char *argv[])
 
 				float aperture_radius = 0.05f; // Controls the size of the blur (lens aperture)
 				float focal_length = 8.0f;	   // Distance to the focal plane
+				int dof_samples = 1;		   // Number of samples for depth of field
 
 				// Compute color using depth of field ray tracing
 				color += depthOfFieldRayTrace(Ray(origin, direction), origin, aperture_radius, focal_length, dof_samples);
 			}
 
 			// Average the color by dividing by the number of samples
-			color /= dof_samples;
+			color /= samples;
 
 			// Apply tone mapping (optional) and set the pixel color
 			image.setPixel(i, j, toneMapping(color));
