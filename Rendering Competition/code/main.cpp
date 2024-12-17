@@ -2,6 +2,7 @@
 @file main.cpp
 */
 
+#include <omp.h>
 #include <iomanip>
 #include <array>
 #include <iostream>
@@ -18,52 +19,60 @@
 #include "Material.h"
 #include <algorithm>
 
-using namespace std; 
+using namespace std;
 
 int samples = 2;
 
-struct Photon {
-    glm::vec3 position;  // Location where the photon landed
-    glm::vec3 direction; // Direction of the photon
-    glm::vec3 power;     // Energy/color of the photon
+struct Photon
+{
+	glm::vec3 position;	 // Location where the photon landed
+	glm::vec3 direction; // Direction of the photon
+	glm::vec3 power;	 // Energy/color of the photon
 
-    Photon(glm::vec3 pos, glm::vec3 dir, glm::vec3 pwr)
-        : position(pos), direction(dir), power(pwr) {}
+	Photon(glm::vec3 pos, glm::vec3 dir, glm::vec3 pwr)
+		: position(pos), direction(dir), power(pwr) {}
 };
 
-glm::vec3 randomDirectionOnHemisphere(const glm::vec3& normal) {
-    float theta = 2.0f * M_PI * ((float)rand() / RAND_MAX); // Random azimuth angle
-    float phi = acos(1.0f - 2.0f * ((float)rand() / RAND_MAX)); // Random inclination angle
+glm::vec3 randomDirectionOnHemisphere(const glm::vec3 &normal)
+{
+	float theta = 2.0f * M_PI * ((float)rand() / RAND_MAX);		// Random azimuth angle
+	float phi = acos(1.0f - 2.0f * ((float)rand() / RAND_MAX)); // Random inclination angle
 
-    float x = sin(phi) * cos(theta);
-    float y = sin(phi) * sin(theta);
-    float z = cos(phi);
+	float x = sin(phi) * cos(theta);
+	float y = sin(phi) * sin(theta);
+	float z = cos(phi);
 
-    glm::vec3 direction(x, y, z);
-    if (glm::dot(direction, normal) < 0.0f) {
-        direction = -direction; // Flip to ensure it's on the correct hemisphere
-    }
+	glm::vec3 direction(x, y, z);
+	if (glm::dot(direction, normal) < 0.0f)
+	{
+		direction = -direction; // Flip to ensure it's on the correct hemisphere
+	}
 
-    return glm::normalize(direction);
+	return glm::normalize(direction);
 }
 
-class PhotonMap {
+class PhotonMap
+{
 public:
-    std::vector<Photon> photons;
+	std::vector<Photon> photons;
 
-    void storePhoton(const Photon& photon) {
-        photons.push_back(photon);
-    }
+	void storePhoton(const Photon &photon)
+	{
+		photons.push_back(photon);
+	}
 
-    std::vector<Photon> findNearbyPhotons(const glm::vec3& position, float radius) const {
-        std::vector<Photon> nearby;
-        for (const auto& p : photons) {
-            if (glm::distance(p.position, position) <= radius) {
-                nearby.push_back(p);
-            }
-        }
-        return nearby;
-    }
+	std::vector<Photon> findNearbyPhotons(const glm::vec3 &position, float radius) const
+	{
+		std::vector<Photon> nearby;
+		for (const auto &p : photons)
+		{
+			if (glm::distance(p.position, position) <= radius)
+			{
+				nearby.push_back(p);
+			}
+		}
+		return nearby;
+	}
 };
 
 PhotonMap photonMap;
@@ -771,30 +780,29 @@ float trace_shadow_ray(Ray shadow_ray, float light_distance)
 	return shadow;
 }
 
+glm::vec3 WardSpecular(glm::vec3 normal, glm::vec3 viewDir, glm::vec3 lightDir, glm::vec3 tangent, glm::vec3 bitangent, Material material)
+{
+	glm::vec3 halfVector = glm::normalize(lightDir + viewDir);
 
-glm::vec3 WardSpecular(glm::vec3 normal, glm::vec3 viewDir, glm::vec3 lightDir, glm::vec3 tangent, glm::vec3 bitangent, Material material) {
-    glm::vec3 halfVector = glm::normalize(lightDir + viewDir);
+	float NdotL = glm::dot(normal, lightDir);
+	float NdotV = glm::dot(normal, viewDir);
+	float NdotH = glm::dot(normal, halfVector);
+	float HdotT = glm::dot(halfVector, tangent);
+	float HdotB = glm::dot(halfVector, bitangent);
 
-    float NdotL = glm::dot(normal, lightDir);
-    float NdotV = glm::dot(normal, viewDir);
-    float NdotH = glm::dot(normal, halfVector);
-    float HdotT = glm::dot(halfVector, tangent);
-    float HdotB = glm::dot(halfVector, bitangent);
+	if (NdotL <= 0.0f || NdotV <= 0.0f)
+		return glm::vec3(0.0);
 
-    if (NdotL <= 0.0f || NdotV <= 0.0f) return glm::vec3(0.0);
+	float exponent = -((HdotT * HdotT) / (material.alpha_x * material.alpha_x) +
+					   (HdotB * HdotB) / (material.alpha_y * material.alpha_y)) /
+					 (NdotH * NdotH);
 
-    float exponent = -((HdotT * HdotT) / (material.alpha_x * material.alpha_x) +
-                      (HdotB * HdotB) / (material.alpha_y * material.alpha_y)) /
-                      (NdotH * NdotH);
+	float denominator = 4.0f * M_PI * material.alpha_x * material.alpha_y * sqrt(NdotL * NdotV);
 
-    float denominator = 4.0f * M_PI * material.alpha_x * material.alpha_y * sqrt(NdotL * NdotV);
+	float specFactor = exp(exponent) / denominator;
 
-    float specFactor = exp(exponent) / denominator;
-
-    return material.specular * specFactor;
+	return material.specular * specFactor;
 }
-
-
 
 /**
  Function defining the scene
@@ -805,17 +813,20 @@ void sceneDefinition()
 	glm::mat4 scaling;
 	glm::mat4 rotation;
 
-	Mesh *bunny = new Mesh("./meshes/car.obj");
-	translation = glm::translate(glm::vec3(0.0f, -3.0f, 8.0f));
-	bunny->setTransformation(translation);
+	Mesh *car = new Mesh("../../../Rendering Competition/code/meshes/car.obj");
+	translation = glm::translate(glm::vec3(0.0f, -2.0f, 10.0f));
+	scaling = glm::scale(glm::vec3(0.1f, 0.1f, 0.1f));
+	rotation = glm::rotate(glm::radians(-160.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	car->setTransformation(translation * rotation * scaling);
+	objects.push_back(car);
 
-/* 	Mesh *armadillo = new Mesh("./meshes/armadillo_small.obj");
-	translation = glm::translate(glm::vec3(-4.0f, -3.0f, 10.0f));
-	armadillo->setTransformation(translation); */
+	/* 	Mesh *armadillo = new Mesh("./meshes/armadillo_small.obj");
+		translation = glm::translate(glm::vec3(-4.0f, -3.0f, 10.0f));
+		armadillo->setTransformation(translation); */
 
-/* 	Mesh *lucy = new Mesh("./meshes/lucy_small.obj");
-	translation = glm::translate(glm::vec3(4.0f, -3.0f, 10.0f));
-	lucy->setTransformation(translation); */
+	/* 	Mesh *lucy = new Mesh("./meshes/lucy_small.obj");
+		translation = glm::translate(glm::vec3(4.0f, -3.0f, 10.0f));
+		lucy->setTransformation(translation); */
 
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
@@ -828,9 +839,8 @@ void sceneDefinition()
 	objects.push_back(new Plane(glm::vec3(0, 27, 0), glm::vec3(0.0, -1, 0)));
 	objects.push_back(new Plane(glm::vec3(0, 1, -0.01), glm::vec3(0.0, 0.0, 1.0)));
 
-	objects.push_back(bunny);
-/* 	objects.push_back(armadillo);
-	objects.push_back(lucy); */
+	/* 	objects.push_back(armadillo);
+		objects.push_back(lucy); */
 }
 glm::vec3 toneMapping(glm::vec3 intensity)
 {
@@ -841,35 +851,41 @@ glm::vec3 toneMapping(glm::vec3 intensity)
 #include <random>
 
 // Generate a random point on a disk (for simulating aperture lens)
-glm::vec2 randomPointOnDisk(float radius) {
-    static std::default_random_engine generator;
-    static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+glm::vec2 randomPointOnDisk(float radius)
+{
+	static std::default_random_engine generator;
+	static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
 
-    float r = radius * sqrt(distribution(generator)); // Disk radius
-    float theta = 2.0f * M_PI * distribution(generator); // Angle
-    return glm::vec2(r * cos(theta), r * sin(theta));
+	float r = radius * sqrt(distribution(generator));	 // Disk radius
+	float theta = 2.0f * M_PI * distribution(generator); // Angle
+	return glm::vec2(r * cos(theta), r * sin(theta));
 }
-void computeTangentBitangent(glm::vec3 normal, glm::vec2 uv, glm::vec3& tangent, glm::vec3& bitangent) {
-    glm::vec3 up = glm::vec3(0.0, 1.0, 0.0);
-    if (glm::abs(normal.y) > 0.99f) up = glm::vec3(1.0, 0.0, 0.0);
+void computeTangentBitangent(glm::vec3 normal, glm::vec2 uv, glm::vec3 &tangent, glm::vec3 &bitangent)
+{
+	glm::vec3 up = glm::vec3(0.0, 1.0, 0.0);
+	if (glm::abs(normal.y) > 0.99f)
+		up = glm::vec3(1.0, 0.0, 0.0);
 
-    tangent = glm::normalize(glm::cross(up, normal));
-    bitangent = glm::normalize(glm::cross(normal, tangent));
+	tangent = glm::normalize(glm::cross(up, normal));
+	bitangent = glm::normalize(glm::cross(normal, tangent));
 }
-glm::vec3 estimatePhotonRadiance(const glm::vec3& position, const glm::vec3& normal, float radius) {
-    std::vector<Photon> nearbyPhotons = photonMap.findNearbyPhotons(position, radius);
+glm::vec3 estimatePhotonRadiance(const glm::vec3 &position, const glm::vec3 &normal, float radius)
+{
+	std::vector<Photon> nearbyPhotons = photonMap.findNearbyPhotons(position, radius);
 
-    glm::vec3 radiance(0.0f);
-    for (const auto& photon : nearbyPhotons) {
-        float weight = glm::dot(normal, -photon.direction);
-        if (weight > 0) {
-            radiance += photon.power * weight;
-        }
-    }
+	glm::vec3 radiance(0.0f);
+	for (const auto &photon : nearbyPhotons)
+	{
+		float weight = glm::dot(normal, -photon.direction);
+		if (weight > 0)
+		{
+			radiance += photon.power * weight;
+		}
+	}
 
-    // Normalize by area
-    float area = M_PI * radius * radius;
-    return radiance / area;
+	// Normalize by area
+	float area = M_PI * radius * radius;
+	return radiance / area;
 }
 /** Function for computing color of an object according to the Phong Model
  @param point A point belonging to the object for which the color is computer
@@ -877,45 +893,50 @@ glm::vec3 estimatePhotonRadiance(const glm::vec3& position, const glm::vec3& nor
  @param view_direction A normalized direction from the point to the viewer/camera
  @param material A material structure representing the material of the object
 */
-glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material, glm::vec3 tangent, glm::vec3 bitangent) {
-    glm::vec3 color(0.0);
-    float epsilon = 1e-4f;
+glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material, glm::vec3 tangent, glm::vec3 bitangent)
+{
+	glm::vec3 color(0.0);
+	float epsilon = 1e-4f;
 
-    // Direct lighting using Phong Model
-    for (int light_num = 0; light_num < lights.size(); light_num++) {
-        glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
-        glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
+	// Direct lighting using Phong Model
+	for (int light_num = 0; light_num < lights.size(); light_num++)
+	{
+		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
+		glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
 
-        float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
-        float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
+		float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
+		float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
 
-        glm::vec3 diffuse = material.diffuse * NdotL;
-        glm::vec3 specular(0.0);
+		glm::vec3 diffuse = material.diffuse * NdotL;
+		glm::vec3 specular(0.0);
 
-        if (material.useWardModel) {
-            specular = WardSpecular(normal, view_direction, light_direction, tangent, bitangent, material);
-        } else {
-            float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
-            specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
-        }
+		if (material.useWardModel)
+		{
+			specular = WardSpecular(normal, view_direction, light_direction, tangent, bitangent, material);
+		}
+		else
+		{
+			float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
+			specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
+		}
 
-        float light_distance = glm::distance(point, lights[light_num]->position);
-        Ray shadow_ray(point + epsilon * normal, light_direction);
-        float shadow = trace_shadow_ray(shadow_ray, light_distance);
+		float light_distance = glm::distance(point, lights[light_num]->position);
+		Ray shadow_ray(point + epsilon * normal, light_direction);
+		float shadow = trace_shadow_ray(shadow_ray, light_distance);
 
-        float r = glm::distance(point, lights[light_num]->position);
-        r = max(r, 0.1f);
-        color += lights[light_num]->color * (diffuse + specular) * shadow / r / r;
-    }
+		float r = glm::distance(point, lights[light_num]->position);
+		r = max(r, 0.1f);
+		color += lights[light_num]->color * (diffuse + specular) * shadow / r / r;
+	}
 
-    // Photon Map Radiance (for diffuse lighting)
-    float searchRadius = 0.5f; // Tune the radius
-    glm::vec3 photonRadiance = estimatePhotonRadiance(point, normal, searchRadius);
-    color += photonRadiance;
+	// Photon Map Radiance (for diffuse lighting)
+	float searchRadius = 0.5f; // Tune the radius
+	glm::vec3 photonRadiance = estimatePhotonRadiance(point, normal, searchRadius);
+	color += photonRadiance;
 
-    color += ambient_light * material.ambient;
-    color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
-    return color;
+	color += ambient_light * material.ambient;
+	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
+	return color;
 }
 /**
  Functions that computes a color along the ray
@@ -937,54 +958,55 @@ glm::vec3 trace_ray(Ray ray)
 			closest_hit = hit;
 	}
 
-    glm::vec3 color(0.0);
-    if (closest_hit.hit)
-    {
-        glm::vec3 tangent, bitangent;
-        computeTangentBitangent(closest_hit.normal, glm::vec2(0.0f), tangent, bitangent); // Assuming dummy UVs
+	glm::vec3 color(0.0);
+	if (closest_hit.hit)
+	{
+		glm::vec3 tangent, bitangent;
+		computeTangentBitangent(closest_hit.normal, glm::vec2(0.0f), tangent, bitangent); // Assuming dummy UVs
 
-        color = PhongModel(closest_hit.intersection, closest_hit.normal, 
-                           glm::normalize(-ray.direction), closest_hit.object->getMaterial(), 
-                           tangent, bitangent);
-    }
-    else
-    {
-        color = glm::vec3(0.0, 0.0, 0.0);
-    }
-    return color;
+		color = PhongModel(closest_hit.intersection, closest_hit.normal,
+						   glm::normalize(-ray.direction), closest_hit.object->getMaterial(),
+						   tangent, bitangent);
+	}
+	else
+	{
+		color = glm::vec3(0.0, 0.0, 0.0);
+	}
+	return color;
 }
-glm::vec3 depthOfFieldRayTrace(const Ray& primary_ray, const glm::vec3& camera_position, 
-                               float aperture_radius, float focal_length, int samples)
+glm::vec3 depthOfFieldRayTrace(const Ray &primary_ray, const glm::vec3 &camera_position,
+							   float aperture_radius, float focal_length, int samples)
 {
-    glm::vec3 color(0.0f);
+	glm::vec3 color(0.0f);
 
-    for (int i = 0; i < samples; i++) {
-        // 1. Sample a point on the aperture (lens)
-        glm::vec2 lens_sample = randomPointOnDisk(aperture_radius);
-        glm::vec3 lens_point = camera_position + glm::vec3(lens_sample.x, lens_sample.y, 0.0f);
+	for (int i = 0; i < samples; i++)
+	{
+		// 1. Sample a point on the aperture (lens)
+		glm::vec2 lens_sample = randomPointOnDisk(aperture_radius);
+		glm::vec3 lens_point = camera_position + glm::vec3(lens_sample.x, lens_sample.y, 0.0f);
 
-        // 2. Compute the focal point
-        float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, -1)); // Assumes camera looks along -Z
-        glm::vec3 focal_point = primary_ray.origin + t * primary_ray.direction;
+		// 2. Compute the focal point
+		float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, -1)); // Assumes camera looks along -Z
+		glm::vec3 focal_point = primary_ray.origin + t * primary_ray.direction;
 
-        // 3. Create a new ray toward the focal point
-        glm::vec3 new_direction = glm::normalize(focal_point - lens_point);
-        Ray new_ray(lens_point, new_direction);
+		// 3. Create a new ray toward the focal point
+		glm::vec3 new_direction = glm::normalize(focal_point - lens_point);
+		Ray new_ray(lens_point, new_direction);
 
-        // 4. Trace the new ray and accumulate color
-        color += trace_ray(new_ray);
-    }
+		// 4. Trace the new ray and accumulate color
+		color += trace_ray(new_ray);
+	}
 
-    // 5. Average the color
-    return color / float(samples);
+	// 5. Average the color
+	return color / float(samples);
 }
 
 void printProgress(float progress, float eta_seconds)
 {
 	int barWidth = 70;
-	//cout << "[";
+	cout << "[";
 	int pos = barWidth * progress;
-/* 	for (int i = 0; i < barWidth; ++i)
+	for (int i = 0; i < barWidth; ++i)
 	{
 		if (i < pos)
 			cout << "=";
@@ -992,133 +1014,136 @@ void printProgress(float progress, float eta_seconds)
 			cout << ">";
 		else
 			cout << " ";
-	} */
-	//cout << "] " << int(progress * 100.0) << " %";
-	//cout << " ETA: " << setw(4) << fixed << setprecision(1) << eta_seconds << "s  \r";
-	//cout.flush();
-}
-glm::vec3 randomDirectionOnHemisphere() {
-    float u = static_cast<float>(rand()) / RAND_MAX; // Random [0, 1]
-    float v = static_cast<float>(rand()) / RAND_MAX;
-
-    float theta = 2.0f * M_PI * u; // Random azimuthal angle
-    float phi = acos(sqrt(v));     // Random inclination angle
-
-    float x = sin(phi) * cos(theta);
-    float y = cos(phi);
-    float z = sin(phi) * sin(theta);
-
-    return glm::normalize(glm::vec3(x, y, z));
+	}
+	cout << "] " << int(progress * 100.0) << " %";
+	cout << " ETA: " << setw(4) << fixed << setprecision(1) << eta_seconds << "s  \r";
+	cout.flush();
 }
 
-void tracePhoton(Ray ray, glm::vec3 power, int depth) {
-    if (depth <= 0) return;
+glm::vec3 randomDirectionOnHemisphere()
+{
+	float u = static_cast<float>(rand()) / RAND_MAX; // Random [0, 1]
+	float v = static_cast<float>(rand()) / RAND_MAX;
 
-    Hit hit;
-    hit.hit = false;
-    hit.distance = INFINITY;
+	float theta = 2.0f * M_PI * u; // Random azimuthal angle
+	float phi = acos(sqrt(v));	   // Random inclination angle
 
-    // Find the closest intersection
-    for (Object* obj : objects) {
-        Hit h = obj->intersect(ray);
-        if (h.hit && h.distance < hit.distance)
-            hit = h;
-    }
+	float x = sin(phi) * cos(theta);
+	float y = cos(phi);
+	float z = sin(phi) * sin(theta);
 
-    if (!hit.hit) return;
+	return glm::normalize(glm::vec3(x, y, z));
+}
 
-    Material material = hit.object->getMaterial();
+void tracePhoton(Ray ray, glm::vec3 power, int depth)
+{
+	if (depth <= 0)
+		return;
 
-        photonMap.storePhoton(Photon(hit.intersection, ray.direction, power));
+	Hit hit;
+	hit.hit = false;
+	hit.distance = INFINITY;
+
+	// Find the closest intersection
+	for (Object *obj : objects)
+	{
+		Hit h = obj->intersect(ray);
+		if (h.hit && h.distance < hit.distance)
+			hit = h;
+	}
+
+	if (!hit.hit)
+		return;
+
+	Material material = hit.object->getMaterial();
+
+	photonMap.storePhoton(Photon(hit.intersection, ray.direction, power));
 
 	// Reflect diffuse photon
 	glm::vec3 newDirection = randomDirectionOnHemisphere(hit.normal);
 	Ray newRay(hit.intersection + hit.normal * 1e-4f, newDirection);
 	tracePhoton(newRay, power * material.diffuse, depth - 1);
-
-}
-void emitPhotons(int numPhotons) {
-    for (Light* light : lights) {
-        glm::vec3 power = light->color * (1.0f / float(numPhotons));
-        for (int i = 0; i < numPhotons; i++) {
-            glm::vec3 direction = randomDirectionOnHemisphere(); // Random hemisphere direction
-            Ray photonRay(light->position, direction);
-
-            tracePhoton(photonRay, power, 5); // 5 is the max bounce depth
-        }
-    }
 }
 
+void emitPhotons(int numPhotons)
+{
+	for (Light *light : lights)
+	{
+		glm::vec3 power = light->color * (1.0f / float(numPhotons));
+		for (int i = 0; i < numPhotons; i++)
+		{
+			glm::vec3 direction = randomDirectionOnHemisphere(); // Random hemisphere direction
+			Ray photonRay(light->position, direction);
 
-
-
-
-
+			tracePhoton(photonRay, power, 5); // 5 is the max bounce depth
+		}
+	}
+}
 
 int main(int argc, const char *argv[])
 {
-    clock_t t = clock(); // Variable for keeping the time of the rendering
+	clock_t t = clock(); // Variable for keeping the time of the rendering
 	clock_t start_time = clock();
-    // Render settings
-    int width = 320;  // Width of the image
-    int height = 240; // Height of the image
-    float fov = 90;   // Field of view
-    int numPhotons = 10; // Total number of photons to emit for global illumination
+	// Render settings
+	int width = 320;	 // Width of the image
+	int height = 240;	 // Height of the image
+	float fov = 90;		 // Field of view
+	int numPhotons = 10; // Total number of photons to emit for global illumination
 
-    sceneDefinition(); // Define the scene (lights, objects, materials, etc.)
+	sceneDefinition(); // Define the scene (lights, objects, materials, etc.)
 
-    // Photon mapping phase: Emit photons and build the photon map
-    emitPhotons(numPhotons);
-    //cout << "Photon emission completed with " << numPhotons << " photons." << endl;
+	// Photon mapping phase: Emit photons and build the photon map
+	emitPhotons(numPhotons);
+	// cout << "Photon emission completed with " << numPhotons << " photons." << endl;
 
-    // Create an image to store the result
-    Image image(width, height);
-    vector<glm::vec3> image_values(width * height);
+	// Create an image to store the result
+	Image image(width, height);
+	vector<glm::vec3> image_values(width * height);
 
-    // Camera parameters
-    float s = 2 * tan(0.5 * fov / 180 * M_PI) / width;
-    float X = -s * width / 2;
-    float Y = s * height / 2;
+	// Camera parameters
+	float s = 2 * tan(0.5 * fov / 180 * M_PI) / width;
+	float X = -s * width / 2;
+	float Y = s * height / 2;
 
-    int totalPixels = width * height;
-    int processed = 0;
+	int totalPixels = width * height;
+	int processed = 0;
 
-    // Render loop
-    for (int i = 0; i < width; i++)
-    {
-        for (int j = 0; j < height; j++)
-        {
-            glm::vec3 color(0.0f); // Accumulator for averaged color
+// Render loop
+#pragma omp parallel for
+	for (int i = 0; i < width; i++)
+	{
+		for (int j = 0; j < height; j++)
+		{
+			glm::vec3 color(0.0f); // Accumulator for averaged color
 
-            // Supersampling for anti-aliasing
-            for (int k = 0; k < samples; ++k)
-            {
-                float u = static_cast<float>(rand()) / RAND_MAX; // Random offset in pixel
-                float v = static_cast<float>(rand()) / RAND_MAX;
+			// Supersampling for anti-aliasing
+			for (int k = 0; k < samples; ++k)
+			{
+				float u = static_cast<float>(rand()) / RAND_MAX; // Random offset in pixel
+				float v = static_cast<float>(rand()) / RAND_MAX;
 
-                // Calculate sub-pixel position
-                float dx = X + (i + u) * s;
-                float dy = Y - (j + v) * s;
-                float dz = 1;
+				// Calculate sub-pixel position
+				float dx = X + (i + u) * s;
+				float dy = Y - (j + v) * s;
+				float dz = 1;
 
-                glm::vec3 origin(0, 0, 0);
-                glm::vec3 direction(dx, dy, dz);
-                direction = glm::normalize(direction);
+				glm::vec3 origin(0, 0, 0);
+				glm::vec3 direction(dx, dy, dz);
+				direction = glm::normalize(direction);
 
-                Ray ray(origin, direction);
+				Ray ray(origin, direction);
 
-                // Trace the ray and get the color
-                color += trace_ray(ray); // trace_ray now accounts for photon map contribution
-            }
+				// Trace the ray and get the color
+				color += trace_ray(ray); // trace_ray now accounts for photon map contribution
+			}
 
-            // Average the color by dividing by the number of samples
-            color /= static_cast<float>(samples);
+			// Average the color by dividing by the number of samples
+			color /= static_cast<float>(samples);
 
-            // Apply tone mapping (optional) and set the pixel color
-            image.setPixel(i, j, toneMapping(color));
+			// Apply tone mapping (optional) and set the pixel color
+			image.setPixel(i, j, toneMapping(color));
 
-            processed++;
-            if (processed % (totalPixels / 100) == 0)
+			if (processed % (totalPixels / 100) == 0)
 			{
 #pragma omp critical
 				{
@@ -1139,8 +1164,8 @@ int main(int argc, const char *argv[])
 		}
 	}
 	t = clock() - t;
-	//cout << "It took " << ((float)t) / CLOCKS_PER_SEC << " seconds to render the image." << endl;
-	//cout << "I could render at " << (float)CLOCKS_PER_SEC / ((float)t) << " frames per second." << endl;
+	// cout << "It took " << ((float)t) / CLOCKS_PER_SEC << " seconds to render the image." << endl;
+	// cout << "I could render at " << (float)CLOCKS_PER_SEC / ((float)t) << " frames per second." << endl;
 
 	// Writing the final results of the rendering
 	if (argc == 2)
