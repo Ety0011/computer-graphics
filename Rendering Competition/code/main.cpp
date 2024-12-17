@@ -2,56 +2,71 @@
 @file main.cpp
 */
 
+#include <iomanip>
+#include <array>
 #include <iostream>
+#include <sstream>
 #include <fstream>
 #include <cmath>
 #include <ctime>
 #include <vector>
+#include "glm/geometric.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 
-#include <omp.h>
-#include <iomanip>
-#include <array>
-#include <sstream>
-#include <algorithm>
-#include <random>
-
 #include "Image.h"
 #include "Material.h"
+#include <algorithm>
 
-using namespace std;
+using namespace std; 
 
-// our code
-// btw -> see header -> TODO: ask prof is we need to implemnt it here
-// just easier to send the assignmend
-//  the one in the header was commented
+int samples = 2;
 
-/**
- Structure describing a material of an object
- */
+struct Photon {
+    glm::vec3 position;  // Location where the photon landed
+    glm::vec3 direction; // Direction of the photon
+    glm::vec3 power;     // Energy/color of the photon
 
-struct Material
-{
-	glm::vec3 ambient = glm::vec3(0.0);
-	;
-	glm::vec3 diffuse = glm::vec3(1.0);
-	glm::vec3 specular = glm::vec3(0.0);
-
-	float shininess = 0.0; // for Phong model
-
-	// add the below fields
-	bool refract_flag = false; // Indicate if is refractive
-
-	// reflect and rerefractivenes
-	float reflex = 0.0;		 // how much reflectiveness it is
-	float refract_idx = 1.0; // represent refractiveness
-
-	float sigmaT; // Tangential anisotropy factor
-	float sigmaB; // Bitangential anisotropy factor
+    Photon(glm::vec3 pos, glm::vec3 dir, glm::vec3 pwr)
+        : position(pos), direction(dir), power(pwr) {}
 };
 
-// our code end
+glm::vec3 randomDirectionOnHemisphere(const glm::vec3& normal) {
+    float theta = 2.0f * M_PI * ((float)rand() / RAND_MAX); // Random azimuth angle
+    float phi = acos(1.0f - 2.0f * ((float)rand() / RAND_MAX)); // Random inclination angle
+
+    float x = sin(phi) * cos(theta);
+    float y = sin(phi) * sin(theta);
+    float z = cos(phi);
+
+    glm::vec3 direction(x, y, z);
+    if (glm::dot(direction, normal) < 0.0f) {
+        direction = -direction; // Flip to ensure it's on the correct hemisphere
+    }
+
+    return glm::normalize(direction);
+}
+
+class PhotonMap {
+public:
+    std::vector<Photon> photons;
+
+    void storePhoton(const Photon& photon) {
+        photons.push_back(photon);
+    }
+
+    std::vector<Photon> findNearbyPhotons(const glm::vec3& position, float radius) const {
+        std::vector<Photon> nearby;
+        for (const auto& p : photons) {
+            if (glm::distance(p.position, position) <= radius) {
+                nearby.push_back(p);
+            }
+        }
+        return nearby;
+    }
+};
+
+PhotonMap photonMap;
 
 /**
  Class representing a single ray.
@@ -688,7 +703,6 @@ public:
 
 		if (node->isLeaf())
 		{
-			// TODO: should use function closest_hit(node->triangles)
 			for (Triangle *object : node->triangles)
 			{
 				Hit hit = object->intersect(ray);
@@ -739,133 +753,178 @@ vector<Light *> lights; ///< A list of lights in the scene
 glm::vec3 ambient_light(0.001, 0.001, 0.001);
 vector<Object *> objects; ///< A list of all objects in the scene
 
-// our code starts
-// jumps between one object and another
-int MAX_JUMP = 5;
-int jump = 0;
-
-// tollerance value
-// to high = noise
-float tol = 0.001f;
-
-// lecture8, slide 38
-// ask TA if this is ok? add a new function?
-float compute_fresnel(float delta_1, float delta_2, float cos_1, float cos_2)
+float trace_shadow_ray(Ray shadow_ray, float light_distance)
 {
-	float part_1 = (delta_1 * cos_1 - delta_2 * cos_2) / (delta_1 * cos_1 + delta_2 * cos_2);
-	part_1 *= part_1;
-	float part_2 = (delta_2 * cos_1 - delta_1 * cos_2) / (delta_2 * cos_1 + delta_1 * cos_2);
-	part_2 *= part_2;
-	return 0.5f * (part_1 + part_2);
-}
-// our code ends
-float rand_float()
-{
-	return static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+	vector<Hit> hits;
+	float shadow = 1.0f;
+
+	for (int k = 0; k < objects.size(); k++)
+	{
+		Hit hit = objects[k]->intersect(shadow_ray);
+		if (hit.hit && hit.distance < light_distance)
+		{
+			shadow = 0.0f;
+			break;
+		}
+	}
+
+	return shadow;
 }
 
-glm::vec3 WardSpecular(glm::vec3 light_direction, glm::vec3 view_direction, glm::vec3 normal, glm::vec3 tangent, glm::vec3 bitangent, float sigmaT, float sigmaB)
-{
-	glm::vec3 light_tangent = glm::dot(light_direction, tangent) * tangent;
-	glm::vec3 light_bitangent = glm::dot(light_direction, bitangent) * bitangent;
-	glm::vec3 view_tangent = glm::dot(view_direction, tangent) * tangent;
-	glm::vec3 view_bitangent = glm::dot(view_direction, bitangent) * bitangent;
 
-	float lT = glm::length(light_tangent - view_tangent);
-	float lB = glm::length(light_bitangent - view_bitangent);
+glm::vec3 WardSpecular(glm::vec3 normal, glm::vec3 viewDir, glm::vec3 lightDir, glm::vec3 tangent, glm::vec3 bitangent, Material material) {
+    glm::vec3 halfVector = glm::normalize(lightDir + viewDir);
 
-	float exponent = -(lT * lT / (2.0f * sigmaT * sigmaT) + lB * lB / (2.0f * sigmaB * sigmaB));
-	glm::vec3 specular = glm::vec3(exp(exponent) / (M_PI * sigmaT * sigmaB)) * glm::vec3(1.0f);
+    float NdotL = glm::dot(normal, lightDir);
+    float NdotV = glm::dot(normal, viewDir);
+    float NdotH = glm::dot(normal, halfVector);
+    float HdotT = glm::dot(halfVector, tangent);
+    float HdotB = glm::dot(halfVector, bitangent);
 
-	return specular;
+    if (NdotL <= 0.0f || NdotV <= 0.0f) return glm::vec3(0.0);
+
+    float exponent = -((HdotT * HdotT) / (material.alpha_x * material.alpha_x) +
+                      (HdotB * HdotB) / (material.alpha_y * material.alpha_y)) /
+                      (NdotH * NdotH);
+
+    float denominator = 4.0f * M_PI * material.alpha_x * material.alpha_y * sqrt(NdotL * NdotV);
+
+    float specFactor = exp(exponent) / denominator;
+
+    return material.specular * specFactor;
 }
 
+
+
+/**
+ Function defining the scene
+ */
+void sceneDefinition()
+{
+	glm::mat4 translation;
+	glm::mat4 scaling;
+	glm::mat4 rotation;
+
+	Mesh *bunny = new Mesh("./meshes/car.obj");
+	translation = glm::translate(glm::vec3(0.0f, -3.0f, 8.0f));
+	bunny->setTransformation(translation);
+
+/* 	Mesh *armadillo = new Mesh("./meshes/armadillo_small.obj");
+	translation = glm::translate(glm::vec3(-4.0f, -3.0f, 10.0f));
+	armadillo->setTransformation(translation); */
+
+/* 	Mesh *lucy = new Mesh("./meshes/lucy_small.obj");
+	translation = glm::translate(glm::vec3(4.0f, -3.0f, 10.0f));
+	lucy->setTransformation(translation); */
+
+	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
+	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
+	lights.push_back(new Light(glm::vec3(0, 5, 1), glm::vec3(0.4)));
+
+	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0)));
+	objects.push_back(new Plane(glm::vec3(0, 1, 30), glm::vec3(0.0, 0.0, -1.0)));
+	objects.push_back(new Plane(glm::vec3(-15, 1, 0), glm::vec3(1.0, 0.0, 0.0)));
+	objects.push_back(new Plane(glm::vec3(15, 1, 0), glm::vec3(-1.0, 0.0, 0.0)));
+	objects.push_back(new Plane(glm::vec3(0, 27, 0), glm::vec3(0.0, -1, 0)));
+	objects.push_back(new Plane(glm::vec3(0, 1, -0.01), glm::vec3(0.0, 0.0, 1.0)));
+
+	objects.push_back(bunny);
+/* 	objects.push_back(armadillo);
+	objects.push_back(lucy); */
+}
+glm::vec3 toneMapping(glm::vec3 intensity)
+{
+	float gamma = 1.0 / 2.0;
+	float alpha = 12.0f;
+	return glm::clamp(alpha * glm::pow(intensity, glm::vec3(gamma)), glm::vec3(0.0), glm::vec3(1.0));
+}
+#include <random>
+
+// Generate a random point on a disk (for simulating aperture lens)
+glm::vec2 randomPointOnDisk(float radius) {
+    static std::default_random_engine generator;
+    static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+
+    float r = radius * sqrt(distribution(generator)); // Disk radius
+    float theta = 2.0f * M_PI * distribution(generator); // Angle
+    return glm::vec2(r * cos(theta), r * sin(theta));
+}
+void computeTangentBitangent(glm::vec3 normal, glm::vec2 uv, glm::vec3& tangent, glm::vec3& bitangent) {
+    glm::vec3 up = glm::vec3(0.0, 1.0, 0.0);
+    if (glm::abs(normal.y) > 0.99f) up = glm::vec3(1.0, 0.0, 0.0);
+
+    tangent = glm::normalize(glm::cross(up, normal));
+    bitangent = glm::normalize(glm::cross(normal, tangent));
+}
+glm::vec3 estimatePhotonRadiance(const glm::vec3& position, const glm::vec3& normal, float radius) {
+    std::vector<Photon> nearbyPhotons = photonMap.findNearbyPhotons(position, radius);
+
+    glm::vec3 radiance(0.0f);
+    for (const auto& photon : nearbyPhotons) {
+        float weight = glm::dot(normal, -photon.direction);
+        if (weight > 0) {
+            radiance += photon.power * weight;
+        }
+    }
+
+    // Normalize by area
+    float area = M_PI * radius * radius;
+    return radiance / area;
+}
 /** Function for computing color of an object according to the Phong Model
  @param point A point belonging to the object for which the color is computer
  @param normal A normal vector the the point
  @param view_direction A normalized direction from the point to the viewer/camera
  @param material A material structure representing the material of the object
 */
-glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material)
-{
-	glm::vec3 color(0.0);
-	for (int light_num = 0; light_num < lights.size(); light_num++)
-	{
+glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 view_direction, Material material, glm::vec3 tangent, glm::vec3 bitangent) {
+    glm::vec3 color(0.0);
+    float epsilon = 1e-4f;
 
-		glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
+    // Direct lighting using Phong Model
+    for (int light_num = 0; light_num < lights.size(); light_num++) {
+        glm::vec3 light_direction = glm::normalize(lights[light_num]->position - point);
+        glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
 
-		// Start shadow calculation
-		Ray shadow_ray(point + normal * 0.01f, light_direction); // Small offset to avoid self-shadowing
-		float light_distance = glm::distance(point, lights[light_num]->position);
+        float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
+        float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
 
-		bool in_shadow = false;
-		for (int obj_num = 0; obj_num < objects.size(); obj_num++)
-		{
-			// Compute shadow
-			Hit shadow_hit = objects[obj_num]->intersect(shadow_ray);
-			if (shadow_hit.hit && shadow_hit.distance > tol && shadow_hit.distance < light_distance - tol)
-			{
-				in_shadow = true;
-				break;
-			}
-		}
+        glm::vec3 diffuse = material.diffuse * NdotL;
+        glm::vec3 specular(0.0);
 
-		if (!in_shadow)
-		{
-			// Phong diffuse component (same as before)
-			glm::vec3 reflected_direction = glm::reflect(-light_direction, normal);
-			float NdotL = glm::clamp(glm::dot(normal, light_direction), 0.0f, 1.0f);
-			glm::vec3 diffuse_color = material.diffuse;
-			glm::vec3 diffuse = diffuse_color * glm::vec3(NdotL);
+        if (material.useWardModel) {
+            specular = WardSpecular(normal, view_direction, light_direction, tangent, bitangent, material);
+        } else {
+            float VdotR = glm::clamp(glm::dot(view_direction, reflected_direction), 0.0f, 1.0f);
+            specular = material.specular * glm::vec3(pow(VdotR, material.shininess));
+        }
 
-			// Ward specular component (replace Phong specular)
-			glm::vec3 tangent = glm::normalize(glm::cross(normal, glm::vec3(0.0f, 1.0f, 0.0f))); // Simplified, should use actual tangent
-			glm::vec3 bitangent = glm::normalize(glm::cross(normal, tangent));					 // Simplified, should use actual bitangent
-			glm::vec3 specular = WardSpecular(light_direction, view_direction, normal, tangent, bitangent, material.sigmaT, material.sigmaB);
+        float light_distance = glm::distance(point, lights[light_num]->position);
+        Ray shadow_ray(point + epsilon * normal, light_direction);
+        float shadow = trace_shadow_ray(shadow_ray, light_distance);
 
-			// Combine diffuse and specular, consider attenuation
-			float r = glm::distance(point, lights[light_num]->position);
-			r = glm::max(r, 0.1f); // Prevent division by zero
-			color += lights[light_num]->color * (diffuse + specular) / (r * r);
-		}
-	}
+        float r = glm::distance(point, lights[light_num]->position);
+        r = max(r, 0.1f);
+        color += lights[light_num]->color * (diffuse + specular) * shadow / r / r;
+    }
 
-	color += ambient_light * material.ambient;				   // Add ambient component
-	color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0)); // Clamp the color to [0, 1]
-	return color;
+    // Photon Map Radiance (for diffuse lighting)
+    float searchRadius = 0.5f; // Tune the radius
+    glm::vec3 photonRadiance = estimatePhotonRadiance(point, normal, searchRadius);
+    color += photonRadiance;
+
+    color += ambient_light * material.ambient;
+    color = glm::clamp(color, glm::vec3(0.0), glm::vec3(1.0));
+    return color;
 }
-
-// Simplex or Perlin Noise implementation
-float perlin_noise(glm::vec2 position)
-{
-	// This is a very simple implementation. A more complex noise function would use a gradient table
-	// and fade functions to interpolate smoothly. This is just for demonstration.
-
-	int xi = static_cast<int>(floor(position.x)) & 255;
-	int yi = static_cast<int>(floor(position.y)) & 255;
-
-	// Using a simple hash function to generate random values
-	float random_val = (sin(xi + yi * 57.0f) * 43758.5453f);
-	return (random_val - floor(random_val));
-}
-
 /**
  Functions that computes a color along the ray
  @param ray Ray that should be traced through the scene
  @return Color at the intersection point
  */
+glm::vec3 trace_ray(Ray ray)
+{
 
-glm::vec3 trace_ray(Ray ray, int jump = 0)
-{ // add "jump", to keep track of recursion
-	// lecture 8 page 44
-
-	// add if to limit recursion
-	// like a while between function
-	if (jump > MAX_JUMP)
-	{
-		return ambient_light;
-	}
-	// end our code
 	Hit closest_hit;
 
 	closest_hit.hit = false;
@@ -878,207 +937,54 @@ glm::vec3 trace_ray(Ray ray, int jump = 0)
 			closest_hit = hit;
 	}
 
-	glm::vec3 color(0.0);
-	if (closest_hit.hit)
-	{
-		// Apply Perlin noise to affect color or texture based on the intersection position
-		glm::vec2 uv = glm::vec2(closest_hit.intersection); // Using xz coordinates for texture mapping
-		float noise = perlin_noise(uv * 0.1f);				// Scale the input for smooth variation
+    glm::vec3 color(0.0);
+    if (closest_hit.hit)
+    {
+        glm::vec3 tangent, bitangent;
+        computeTangentBitangent(closest_hit.normal, glm::vec2(0.0f), tangent, bitangent); // Assuming dummy UVs
 
-		// Modify the color of the material based on the noise value
-		glm::vec3 modified_color = closest_hit.object->color * (1.0f + 0.5f * noise);
-
-		// Calculate Phong shading or any other material model
-		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial());
-
-		// Apply the modified color due to Perlin noise
-		// color *= modified_color;
-
-		// start our code
-		glm::vec3 reflect_color(0.0);
-
-		// there is reflectivity
-		if (closest_hit.object->getMaterial().reflex > 0.0f && !closest_hit.object->getMaterial().refract_flag)
-		{
-			// calculate reflection direction and cast reflection ray
-			glm::vec3 reflect_dir = glm::reflect(ray.direction, closest_hit.normal);
-			Ray reflect_ray(closest_hit.intersection + tol * reflect_dir, reflect_dir);
-
-			// ready to jump;
-			jump++;
-			reflect_color = trace_ray(reflect_ray, jump);
-
-			// blend the phong color and reflect color based on reflectivity
-			color = color * (1 - closest_hit.object->getMaterial().reflex) + reflect_color * closest_hit.object->getMaterial().reflex;
-		}
-		// use Snell's Law applied like seen in slides (if we have refraction)
-		if (closest_hit.object->getMaterial().refract_flag)
-		{
-			float refractive_idx = closest_hit.object->getMaterial().reflex; // Material's refractive index
-
-			float refract_idx = closest_hit.object->getMaterial().refract_idx;
-
-			bool outside = glm::dot(ray.direction, closest_hit.normal) >= 0;
-
-			// calculate beta
-			float beta = outside ? refract_idx : 1.0f / refract_idx;
-			glm::vec3 normal_to_reflect = outside ? -closest_hit.normal : closest_hit.normal;
-
-			// coses
-			float cos_theta1 = glm::dot(ray.direction, normal_to_reflect);
-			// like abs but for float
-			if (cos_theta1 < 0.0f)
-				cos_theta1 = -cos_theta1;
-
-			// see if we can refract -> slide
-			float cos_theta2 = sqrt(1 - (beta * beta) * (1 - cos_theta1 * cos_theta1));
-
-			// sin
-			float sin_theta1 = sqrt(1 - cos_theta1 * cos_theta1);
-
-			// ray is outside or inside
-			float delta1 = outside ? refract_idx : 1.0f;
-			float delta2 = outside ? 1.0f : refract_idx;
-
-			glm::vec3 refract_color(0.0);
-
-			if (beta * sin_theta1 < 1.0f)
-			{ // enough for refraction
-				// coefficents for refracted ray. prof... why these name ::cry
-				glm::vec3 a = normal_to_reflect * glm::dot(ray.direction, normal_to_reflect); // normal component
-				glm::vec3 b = ray.direction - a;											  // tangential component(parallel to the surface)
-
-				// lesson 8 page 31, refracted direction, alpha formula
-				float alpha = sqrt(1 + (1 - beta * beta) * (glm::dot(b, b) / glm::dot(a, a)));
-
-				// lesson 8, page 31, ray direction, r formula, tell prof to choose better words... a*a=alpha*a :/
-				glm::vec3 rafract_dir = glm::normalize(alpha * a + beta * b);
-				glm::vec3 shift_pos = closest_hit.intersection + tol * rafract_dir;
-				Ray refracted_ray = Ray(shift_pos, rafract_dir);
-
-				// ready to jump;
-				jump++;
-				refract_color = trace_ray(refracted_ray, jump);
-			}
-			// reflective part
-			glm::vec3 reflect_dir = glm::reflect(ray.direction, normal_to_reflect);
-			Ray new_reflect_ray(closest_hit.intersection + tol * reflect_dir, reflect_dir);
-
-			// ready to jump;
-			jump++;
-			reflect_color = trace_ray(new_reflect_ray, jump);
-
-			// fresnel effect
-			float fresnel_reflect = compute_fresnel(delta1, delta2, cos_theta1, cos_theta2);
-			float fresnel_refract = 1 - fresnel_reflect;
-
-			// blend with refraction
-			// NOTE color has shadow
-			// see above
-			// slide
-			glm::vec3 I_reflect = fresnel_reflect * reflect_color;
-			glm::vec3 I_refract = fresnel_refract * refract_color;
-			color = I_reflect + I_refract;
-		}
-		// our code ends
-	}
-	else
-	{
-		color = glm::vec3(0.0, 0.0, 0.0);
-	}
-	return color;
+        color = PhongModel(closest_hit.intersection, closest_hit.normal, 
+                           glm::normalize(-ray.direction), closest_hit.object->getMaterial(), 
+                           tangent, bitangent);
+    }
+    else
+    {
+        color = glm::vec3(0.0, 0.0, 0.0);
+    }
+    return color;
 }
-
-/**
- Function defining the scene
- */
-void sceneDefinition()
+glm::vec3 depthOfFieldRayTrace(const Ray& primary_ray, const glm::vec3& camera_position, 
+                               float aperture_radius, float focal_length, int samples)
 {
-	// Materiale verde (diffuso)
-	Material green_diffuse;
-	green_diffuse.ambient = glm::vec3(0.2f, 0.2f, 0.2f); // Ambient light should be more subtle for realism
-	green_diffuse.diffuse = glm::vec3(0.3f, 0.7f, 0.3f); // More balanced green
-	green_diffuse.sigmaT = 0.05f;						 // Lower absorption to maintain color brightness
-	green_diffuse.sigmaB = 0.05f;
+    glm::vec3 color(0.0f);
 
-	// Materiale rosso (speculare)
-	Material red_specular;
-	red_specular.ambient = glm::vec3(0.2f, 0.1f, 0.1f); // Lower ambient for more natural lighting
-	red_specular.diffuse = glm::vec3(0.6f, 0.1f, 0.1f); // Stronger red diffuse color
-	red_specular.specular = glm::vec3(0.5f);
-	red_specular.shininess = 15.0f; // Slightly higher shininess for more glossy appearance
-	red_specular.sigmaT = 0.1f;
-	red_specular.sigmaB = 0.1f;
+    for (int i = 0; i < samples; i++) {
+        // 1. Sample a point on the aperture (lens)
+        glm::vec2 lens_sample = randomPointOnDisk(aperture_radius);
+        glm::vec3 lens_point = camera_position + glm::vec3(lens_sample.x, lens_sample.y, 0.0f);
 
-	// Materiale blu (speculare, cromatico)
-	Material blue_specular;
-	blue_specular.ambient = glm::vec3(0.2f, 0.2f, 0.6f); // More subtle blue ambient
-	blue_specular.diffuse = glm::vec3(0.4f, 0.4f, 1.0f); // Stronger blue diffuse
-	blue_specular.specular = glm::vec3(0.7f);			 // Higher specular to make it shinier
-	blue_specular.shininess = 35.0f;					 // Moderate shininess
-	blue_specular.reflex = 0.5f;						 // Strong reflection property
-	blue_specular.sigmaT = 0.03f;
-	blue_specular.sigmaB = 0.03f;
+        // 2. Compute the focal point
+        float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, -1)); // Assumes camera looks along -Z
+        glm::vec3 focal_point = primary_ray.origin + t * primary_ray.direction;
 
-	// Materiale plastica (con rifrazione)
-	Material plastic;
-	plastic.ambient = glm::vec3(0.02f, 0.02f, 0.1f); // Darker ambient for plastic
-	plastic.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);	 // Blue diffuse
-	plastic.specular = glm::vec3(0.6f);				 // Good specular reflection
-	plastic.refract_flag = true;
-	plastic.refract_idx = 1.5f; // Higher refractive index for plastic
-	plastic.shininess = 10.0f;	// Moderate shininess for plastic
-	plastic.sigmaT = 0.05f;		// Reduced absorption for realistic plastic
-	plastic.sigmaB = 0.05f;
+        // 3. Create a new ray toward the focal point
+        glm::vec3 new_direction = glm::normalize(focal_point - lens_point);
+        Ray new_ray(lens_point, new_direction);
 
-	// Materiale giallo (ceramica, meno riflettente)
-	Material yellow_specular;
-	yellow_specular.ambient = glm::vec3(0.1f, 0.1f, 0.0f); // Subtle yellow ambient
-	yellow_specular.diffuse = glm::vec3(0.6f, 0.6f, 0.0f); // Stronger yellow diffuse
-	yellow_specular.specular = glm::vec3(0.2f);			   // Lower specular reflection for ceramics
-	yellow_specular.shininess = 20.0f;					   // Moderate shininess for ceramic
-	yellow_specular.sigmaT = 0.1f;
-	yellow_specular.sigmaB = 0.1f;
+        // 4. Trace the new ray and accumulate color
+        color += trace_ray(new_ray);
+    }
 
-	// Oggetti della scena
-	objects.push_back(new Sphere(3.0, glm::vec3(-10, 10, 20), red_specular)); // Blu speculare
-	objects.push_back(new Sphere(0.5, glm::vec3(1, -1, 2), red_specular));	  // Rosso speculare
-	// objects.push_back(new Sphere(2, glm::vec3(-3, -1, 8), plastic));		// Plastica (con rifrazione)
-
-	// Piani della scena
-	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, -1, 0)));
-	objects.push_back(new Plane(glm::vec3(0, 1, 30), glm::vec3(0.0, 0.0, -1.0), green_diffuse)); // Verde diffuso
-	objects.push_back(new Plane(glm::vec3(-15, 1, 0), glm::vec3(1.0, 0.0, 0.0), red_specular));	 // Rosso speculare
-	objects.push_back(new Plane(glm::vec3(15, 1, 0), glm::vec3(-1.0, 0.0, 0.0), blue_specular)); // Blu speculare
-	objects.push_back(new Plane(glm::vec3(0, 27, 0), glm::vec3(0.0, -1, 0), green_diffuse));
-	objects.push_back(new Plane(glm::vec3(0, 1, -0.01), glm::vec3(0.0, 0.0, 1.0), blue_specular));
-
-	// Luci della scena
-	lights.push_back(new Light(glm::vec3(10, 15, 10), glm::vec3(1.0f)));
-	lights.push_back(new Light(glm::vec3(-10, 15, 10), glm::vec3(1.0f)));
-	lights.push_back(new Light(glm::vec3(-5, 5, 0), glm::vec3(0.1f)));
-
-	Mesh *car = new Mesh("../../../Rendering Competition/code/meshes/car.obj");
-	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -2.0f, 10.0f));
-	glm::mat4 scaling = glm::scale(glm::vec3(0.1f, 0.1f, 0.1f));
-	glm::mat4 rotation = glm::rotate(glm::radians(-160.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	car->setTransformation(translation * rotation * scaling);
-	objects.push_back(car);
-}
-
-glm::vec3 toneMapping(glm::vec3 intensity)
-{
-	float gamma = 1.0 / 2.0;
-	float alpha = 12.0f;
-	return glm::clamp(alpha * glm::pow(intensity, glm::vec3(gamma)), glm::vec3(0.0), glm::vec3(1.0));
+    // 5. Average the color
+    return color / float(samples);
 }
 
 void printProgress(float progress, float eta_seconds)
 {
 	int barWidth = 70;
-	cout << "[";
+	//cout << "[";
 	int pos = barWidth * progress;
-	for (int i = 0; i < barWidth; ++i)
+/* 	for (int i = 0; i < barWidth; ++i)
 	{
 		if (i < pos)
 			cout << "=";
@@ -1086,91 +992,138 @@ void printProgress(float progress, float eta_seconds)
 			cout << ">";
 		else
 			cout << " ";
-	}
-	cout << "] " << int(progress * 100.0) << " %";
-	cout << " ETA: " << setw(4) << fixed << setprecision(1) << eta_seconds << "s  \r";
-	cout.flush();
+	} */
+	//cout << "] " << int(progress * 100.0) << " %";
+	//cout << " ETA: " << setw(4) << fixed << setprecision(1) << eta_seconds << "s  \r";
+	//cout.flush();
 }
+glm::vec3 randomDirectionOnHemisphere() {
+    float u = static_cast<float>(rand()) / RAND_MAX; // Random [0, 1]
+    float v = static_cast<float>(rand()) / RAND_MAX;
+
+    float theta = 2.0f * M_PI * u; // Random azimuthal angle
+    float phi = acos(sqrt(v));     // Random inclination angle
+
+    float x = sin(phi) * cos(theta);
+    float y = cos(phi);
+    float z = sin(phi) * sin(theta);
+
+    return glm::normalize(glm::vec3(x, y, z));
+}
+
+void tracePhoton(Ray ray, glm::vec3 power, int depth) {
+    if (depth <= 0) return;
+
+    Hit hit;
+    hit.hit = false;
+    hit.distance = INFINITY;
+
+    // Find the closest intersection
+    for (Object* obj : objects) {
+        Hit h = obj->intersect(ray);
+        if (h.hit && h.distance < hit.distance)
+            hit = h;
+    }
+
+    if (!hit.hit) return;
+
+    Material material = hit.object->getMaterial();
+
+        photonMap.storePhoton(Photon(hit.intersection, ray.direction, power));
+
+	// Reflect diffuse photon
+	glm::vec3 newDirection = randomDirectionOnHemisphere(hit.normal);
+	Ray newRay(hit.intersection + hit.normal * 1e-4f, newDirection);
+	tracePhoton(newRay, power * material.diffuse, depth - 1);
+
+}
+void emitPhotons(int numPhotons) {
+    for (Light* light : lights) {
+        glm::vec3 power = light->color * (1.0f / float(numPhotons));
+        for (int i = 0; i < numPhotons; i++) {
+            glm::vec3 direction = randomDirectionOnHemisphere(); // Random hemisphere direction
+            Ray photonRay(light->position, direction);
+
+            tracePhoton(photonRay, power, 5); // 5 is the max bounce depth
+        }
+    }
+}
+
+
+
+
+
+
 
 int main(int argc, const char *argv[])
 {
-
-	clock_t t = clock(); // variable for keeping the time of the rendering
+    clock_t t = clock(); // Variable for keeping the time of the rendering
 	clock_t start_time = clock();
+    // Render settings
+    int width = 320;  // Width of the image
+    int height = 240; // Height of the image
+    float fov = 90;   // Field of view
+    int numPhotons = 10; // Total number of photons to emit for global illumination
 
-	int width = 1024; // 320;  // width of the image
-	int height = 768; // height of the image
-	float fov = 90;	  // field of view
+    sceneDefinition(); // Define the scene (lights, objects, materials, etc.)
 
-	sceneDefinition(); // Let's define a scene
+    // Photon mapping phase: Emit photons and build the photon map
+    emitPhotons(numPhotons);
+    //cout << "Photon emission completed with " << numPhotons << " photons." << endl;
 
-	Image image(width, height); // Create an image where we will store the result
-	vector<glm::vec3> image_values(width * height);
+    // Create an image to store the result
+    Image image(width, height);
+    vector<glm::vec3> image_values(width * height);
 
-	float s = 2 * tan(0.5 * fov / 180 * M_PI) / width;
-	float X = -s * width / 2;
-	float Y = s * height / 2;
+    // Camera parameters
+    float s = 2 * tan(0.5 * fov / 180 * M_PI) / width;
+    float X = -s * width / 2;
+    float Y = s * height / 2;
 
-	// Random number generator for jitter
-	std::random_device rd;
-	std::mt19937 gen(rd());
-	std::uniform_real_distribution<float> dis(-0.5f, 0.5f);
-	// Parametri Depth of Field
-	int samples_per_pixel = 16;	  // Number of samples per pixel
-	float aperture_radius = 0.2f; // Apertura della lente
-	float focus_distance = 6.0f;  // Distanza dal piano focale
+    int totalPixels = width * height;
+    int processed = 0;
 
-	// Generatore di numeri casuali per l'apertura
-	std::uniform_real_distribution<float> aperture_dis(-0.5f, 0.5f);
+    // Render loop
+    for (int i = 0; i < width; i++)
+    {
+        for (int j = 0; j < height; j++)
+        {
+            glm::vec3 color(0.0f); // Accumulator for averaged color
 
-	int totalPixels = width * height;
-	int iteration = 0;
-#pragma omp parallel for
-	for (int i = 0; i < width; i++)
-	{
-		for (int j = 0; j < height; j++)
-		{
-			glm::vec3 pixel_color(0.0f); // Accumulator for the pixel color
+            // Supersampling for anti-aliasing
+            for (int k = 0; k < samples; ++k)
+            {
+                float u = static_cast<float>(rand()) / RAND_MAX; // Random offset in pixel
+                float v = static_cast<float>(rand()) / RAND_MAX;
 
-			for (int sample = 0; sample < samples_per_pixel; sample++)
-			{
-				// Add random jitter within the pixel
-				float dx = X + (i + 0.5f + dis(gen)) * s;
-				float dy = Y - (j + 0.5f + dis(gen)) * s;
-				float dz = 1;
+                // Calculate sub-pixel position
+                float dx = X + (i + u) * s;
+                float dy = Y - (j + v) * s;
+                float dz = 1;
 
-				glm::vec3 focal_point = glm::vec3(dx, dy, dz) * focus_distance; // Punto sul piano focale
+                glm::vec3 origin(0, 0, 0);
+                glm::vec3 direction(dx, dy, dz);
+                direction = glm::normalize(direction);
 
-				// Calcolo di un punto casuale sull'apertura
-				float lens_u, lens_v;
-				do
-				{
-					lens_u = aperture_dis(gen);
-					lens_v = aperture_dis(gen);
-				} while (lens_u * lens_u + lens_v * lens_v > 1.0f); // Assicuriamoci che sia nel cerchio unitario
+                Ray ray(origin, direction);
 
-				lens_u *= aperture_radius;
-				lens_v *= aperture_radius;
+                // Trace the ray and get the color
+                color += trace_ray(ray); // trace_ray now accounts for photon map contribution
+            }
 
-				glm::vec3 origin(lens_u, lens_v, 0);						// Origine del raggio spostata
-				glm::vec3 direction = glm::normalize(focal_point - origin); // Direzione verso il piano focale
+            // Average the color by dividing by the number of samples
+            color /= static_cast<float>(samples);
 
-				Ray ray(origin, direction);
-				pixel_color += trace_ray(ray); // Accumulate the color from the ray
-			}
+            // Apply tone mapping (optional) and set the pixel color
+            image.setPixel(i, j, toneMapping(color));
 
-			// Average the accumulated color
-			pixel_color /= static_cast<float>(samples_per_pixel);
-
-			// Apply tone mapping and set the pixel
-			image.setPixel(i, j, toneMapping(pixel_color));
-
-			if (iteration % (totalPixels / 100) == 0)
+            processed++;
+            if (processed % (totalPixels / 100) == 0)
 			{
 #pragma omp critical
 				{
 					// Calculate progress
-					float progress = (float)(iteration) / totalPixels;
+					float progress = (float)(processed) / totalPixels;
 
 					// Calculate elapsed time
 					clock_t current_time = clock();
@@ -1182,12 +1135,12 @@ int main(int argc, const char *argv[])
 					printProgress(progress, eta_seconds);
 				}
 			}
-			iteration++;
+			processed++;
 		}
 	}
 	t = clock() - t;
-	cout << "It took " << ((float)t) / CLOCKS_PER_SEC << " seconds to render the image." << endl;
-	cout << "I could render at " << (float)CLOCKS_PER_SEC / ((float)t) << " frames per second." << endl;
+	//cout << "It took " << ((float)t) / CLOCKS_PER_SEC << " seconds to render the image." << endl;
+	//cout << "I could render at " << (float)CLOCKS_PER_SEC / ((float)t) << " frames per second." << endl;
 
 	// Writing the final results of the rendering
 	if (argc == 2)
