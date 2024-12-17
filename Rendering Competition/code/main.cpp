@@ -11,6 +11,7 @@
 #include <cmath>
 #include <ctime>
 #include <vector>
+#include <random>
 #include "glm/geometric.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
@@ -20,8 +21,6 @@
 #include <algorithm>
 
 using namespace std;
-
-int samples = 2;
 
 struct Photon
 {
@@ -813,9 +812,9 @@ void sceneDefinition()
 	glm::mat4 scaling;
 	glm::mat4 rotation;
 
-	Mesh *car = new Mesh("../../../Rendering Competition/code/meshes/car.obj");
+	Mesh *car = new Mesh("../../../Rendering Competition/code/meshes/car_small.obj");
 	translation = glm::translate(glm::vec3(0.0f, -2.0f, 10.0f));
-	scaling = glm::scale(glm::vec3(0.1f, 0.1f, 0.1f));
+	scaling = glm::scale(glm::vec3(0.1f));
 	rotation = glm::rotate(glm::radians(-160.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	car->setTransformation(translation * rotation * scaling);
 	objects.push_back(car);
@@ -848,7 +847,6 @@ glm::vec3 toneMapping(glm::vec3 intensity)
 	float alpha = 12.0f;
 	return glm::clamp(alpha * glm::pow(intensity, glm::vec3(gamma)), glm::vec3(0.0), glm::vec3(1.0));
 }
-#include <random>
 
 // Generate a random point on a disk (for simulating aperture lens)
 glm::vec2 randomPointOnDisk(float radius)
@@ -974,6 +972,7 @@ glm::vec3 trace_ray(Ray ray)
 	}
 	return color;
 }
+
 glm::vec3 depthOfFieldRayTrace(const Ray &primary_ray, const glm::vec3 &camera_position,
 							   float aperture_radius, float focal_length, int samples)
 {
@@ -986,7 +985,7 @@ glm::vec3 depthOfFieldRayTrace(const Ray &primary_ray, const glm::vec3 &camera_p
 		glm::vec3 lens_point = camera_position + glm::vec3(lens_sample.x, lens_sample.y, 0.0f);
 
 		// 2. Compute the focal point
-		float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, -1)); // Assumes camera looks along -Z
+		float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, 1)); // Assumes camera looks along Z
 		glm::vec3 focal_point = primary_ray.origin + t * primary_ray.direction;
 
 		// 3. Create a new ray toward the focal point
@@ -1093,7 +1092,7 @@ int main(int argc, const char *argv[])
 	sceneDefinition(); // Define the scene (lights, objects, materials, etc.)
 
 	// Photon mapping phase: Emit photons and build the photon map
-	emitPhotons(numPhotons);
+	// emitPhotons(numPhotons);
 	// cout << "Photon emission completed with " << numPhotons << " photons." << endl;
 
 	// Create an image to store the result
@@ -1117,7 +1116,8 @@ int main(int argc, const char *argv[])
 			glm::vec3 color(0.0f); // Accumulator for averaged color
 
 			// Supersampling for anti-aliasing
-			for (int k = 0; k < samples; ++k)
+			int dof_samples = 5; // Number of samples for depth of field
+			for (int k = 0; k < dof_samples; ++k)
 			{
 				float u = static_cast<float>(rand()) / RAND_MAX; // Random offset in pixel
 				float v = static_cast<float>(rand()) / RAND_MAX;
@@ -1133,12 +1133,15 @@ int main(int argc, const char *argv[])
 
 				Ray ray(origin, direction);
 
-				// Trace the ray and get the color
-				color += trace_ray(ray); // trace_ray now accounts for photon map contribution
+				float aperture_radius = 0.05f; // Controls the size of the blur (lens aperture)
+				float focal_length = 8.0f;	   // Distance to the focal plane
+
+				// Compute color using depth of field ray tracing
+				color += depthOfFieldRayTrace(Ray(origin, direction), origin, aperture_radius, focal_length, dof_samples);
 			}
 
 			// Average the color by dividing by the number of samples
-			color /= static_cast<float>(samples);
+			color /= dof_samples;
 
 			// Apply tone mapping (optional) and set the pixel color
 			image.setPixel(i, j, toneMapping(color));
