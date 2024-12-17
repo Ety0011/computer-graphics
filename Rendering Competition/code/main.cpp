@@ -1016,7 +1016,7 @@ void sceneDefinition()
 	blue_specular.diffuse = glm::vec3(0.4f, 0.4f, 1.0f); // Stronger blue diffuse
 	blue_specular.specular = glm::vec3(0.7f);			 // Higher specular to make it shinier
 	blue_specular.shininess = 35.0f;					 // Moderate shininess
-	blue_specular.reflex = 0.9f;						 // Strong reflection property
+	blue_specular.reflex = 0.5f;						 // Strong reflection property
 	blue_specular.sigmaT = 0.03f;
 	blue_specular.sigmaB = 0.03f;
 
@@ -1040,24 +1040,28 @@ void sceneDefinition()
 	yellow_specular.sigmaT = 0.1f;
 	yellow_specular.sigmaB = 0.1f;
 
+	// Oggetti della scena
+	objects.push_back(new Sphere(3.0, glm::vec3(-10, 10, 20), red_specular)); // Blu speculare
+	objects.push_back(new Sphere(0.5, glm::vec3(1, -1, 2), red_specular));	  // Rosso speculare
+	// objects.push_back(new Sphere(2, glm::vec3(-3, -1, 8), plastic));		// Plastica (con rifrazione)
+
 	// Piani della scena
-	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0), green_diffuse));
+	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, -1, 0)));
 	objects.push_back(new Plane(glm::vec3(0, 1, 30), glm::vec3(0.0, 0.0, -1.0), green_diffuse)); // Verde diffuso
 	objects.push_back(new Plane(glm::vec3(-15, 1, 0), glm::vec3(1.0, 0.0, 0.0), red_specular));	 // Rosso speculare
 	objects.push_back(new Plane(glm::vec3(15, 1, 0), glm::vec3(-1.0, 0.0, 0.0), blue_specular)); // Blu speculare
 	objects.push_back(new Plane(glm::vec3(0, 27, 0), glm::vec3(0.0, -1, 0), green_diffuse));
-	objects.push_back(new Plane(glm::vec3(0, 1, -0.01), glm::vec3(0.0, 0.0, 1.0), green_diffuse));
+	objects.push_back(new Plane(glm::vec3(0, 1, -0.01), glm::vec3(0.0, 0.0, 1.0), blue_specular));
 
 	// Luci della scena
-	// lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0, 1.0, 1.0)));
-	// lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1f)));
-	lights.push_back(new Light(glm::vec3(6, 2, 5), glm::vec3(0.2f)));
-	lights.push_back(new Light(glm::vec3(-6, 2, 5), glm::vec3(0.2f)));
+	lights.push_back(new Light(glm::vec3(10, 15, 10), glm::vec3(1.0f)));
+	lights.push_back(new Light(glm::vec3(-10, 15, 10), glm::vec3(1.0f)));
+	lights.push_back(new Light(glm::vec3(-5, 5, 0), glm::vec3(0.1f)));
 
 	Mesh *car = new Mesh("../../../Rendering Competition/code/meshes/car.obj");
-	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -2.0f, 8.0f));
+	glm::mat4 translation = glm::translate(glm::vec3(0.0f, -2.0f, 10.0f));
 	glm::mat4 scaling = glm::scale(glm::vec3(0.1f, 0.1f, 0.1f));
-	glm::mat4 rotation = glm::rotate(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 rotation = glm::rotate(glm::radians(-160.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	car->setTransformation(translation * rotation * scaling);
 	objects.push_back(car);
 }
@@ -1094,10 +1098,9 @@ int main(int argc, const char *argv[])
 	clock_t t = clock(); // variable for keeping the time of the rendering
 	clock_t start_time = clock();
 
-	int width = 320;		   // width of the image
-	int height = 240;		   // height of the image
-	float fov = 90;			   // field of view
-	int samples_per_pixel = 1; // Number of samples per pixel
+	int width = 1024; // 320;  // width of the image
+	int height = 768; // height of the image
+	float fov = 90;	  // field of view
 
 	sceneDefinition(); // Let's define a scene
 
@@ -1113,8 +1116,9 @@ int main(int argc, const char *argv[])
 	std::mt19937 gen(rd());
 	std::uniform_real_distribution<float> dis(-0.5f, 0.5f);
 	// Parametri Depth of Field
-	float aperture_radius = 0.0f; // Apertura della lente
-	float focus_distance = 8.0f;  // Distanza dal piano focale
+	int samples_per_pixel = 16;	  // Number of samples per pixel
+	float aperture_radius = 0.2f; // Apertura della lente
+	float focus_distance = 6.0f;  // Distanza dal piano focale
 
 	// Generatore di numeri casuali per l'apertura
 	std::uniform_real_distribution<float> aperture_dis(-0.5f, 0.5f);
