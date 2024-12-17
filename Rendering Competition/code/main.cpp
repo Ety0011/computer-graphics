@@ -50,6 +50,8 @@ struct Hit
 	glm::vec3 intersection; ///< Point of Intersection
 	float distance;			///< Distance from the origin of the ray to the intersection point
 	Object *object;			///< A pointer to the intersected object
+	glm::vec3 tangent = glm::vec3(0.0f);
+	glm::vec3 bitangent = glm::vec3(0.0f);
 };
 
 /**
@@ -152,6 +154,27 @@ public:
 			hit.normal = glm::normalize(hit.intersection - center);
 			hit.distance = glm::distance(ray.origin, hit.intersection);
 			hit.object = this;
+
+			// Calculate tangent and bitangent vectors at the intersection point
+			glm::vec3 normal = hit.normal;
+
+			// Arbitrary vector (world up vector) to compute tangent
+			glm::vec3 arbitrary_up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+			// If the normal is parallel to the arbitrary up vector, use a different vector
+			if (glm::dot(normal, arbitrary_up) > 0.999f)
+			{
+				arbitrary_up = glm::vec3(1.0f, 0.0f, 0.0f);
+			}
+
+			// Calculate tangent vector (perpendicular to the normal)
+			glm::vec3 tangent = glm::normalize(glm::cross(normal, arbitrary_up));
+			// Calculate bitangent vector (perpendicular to both normal and tangent)
+			glm::vec3 bitangent = glm::cross(normal, tangent);
+
+			// Store tangent and bitangent in the hit object
+			hit.tangent = tangent;
+			hit.bitangent = bitangent;
 		}
 		else
 		{
@@ -392,13 +415,35 @@ float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &
 	return unblocked_rays / float(shadow_samples);
 }
 
+glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_dir, glm::vec3 normal,
+								  glm::vec3 tangent, glm::vec3 bitangent, Material material)
+{
+	glm::vec3 halfVector = glm::normalize(to_light_dir + to_camera_dir);
+
+	float NdotL = glm::dot(normal, to_light_dir);
+	float NdotV = glm::dot(normal, to_camera_dir);
+
+	if (NdotL < 0.0f || NdotV < 0.0f)
+		return glm::vec3(0.0);
+
+	float HdotN = glm::dot(halfVector, normal);
+	float HdotT = glm::dot(halfVector, tangent);
+	float HdotB = glm::dot(halfVector, bitangent);
+
+	float exponent = -2 * (pow(HdotT / material.alpha_x, 2) + pow(HdotB / material.alpha_y, 2)) / (1 + HdotN);
+
+	float ward_term = NdotL * exp(exponent) / (sqrt(NdotL * NdotV) * 4.0f * M_PI * material.alpha_x * material.alpha_y);
+
+	return material.specular * ward_term;
+}
+
 /** Function for computing color of an object according to the Phong Model
  @param point A point belonging to the object for which the color is computer
  @param normal A normal vector the the point
  @param view_direction A normalized direction from the point to the viewer/camera
  @param material A material structure representing the material of the object
 */
-glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir, Material material, int depth_recursion)
+glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir, Material material, glm::vec3 tangent, glm::vec3 bitangent, int depth_recursion)
 {
 	glm::vec3 color(0.0);
 	float epsilon = 1e-4f;
@@ -411,10 +456,19 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 		float light_distance = glm::distance(point, lights[light_num]->position);
 
 		float cosOmega = glm::clamp(glm::dot(normal, to_light_dir), 0.0f, 1.0f);
-		float cosAlpha = glm::clamp(glm::dot(to_camera_dir, reflected_from_light_dir), 0.0f, 1.0f);
-		glm::vec3 diffuse_color = material.diffuse;
-		glm::vec3 diffuse = diffuse_color * glm::vec3(cosOmega);
-		glm::vec3 specular = material.specular * glm::vec3(pow(cosAlpha, material.shininess));
+		glm::vec3 diffuse = material.diffuse * glm::vec3(cosOmega);
+
+		glm::vec3 specular(0.0f);
+		if (material.is_anisotropic)
+		{
+			// Works only with spheres
+			specular = calculate_ward_specular(to_light_dir, to_camera_dir, normal, tangent, bitangent, material);
+		}
+		else
+		{
+			float cosAlpha = glm::clamp(glm::dot(to_camera_dir, reflected_from_light_dir), 0.0f, 1.0f);
+			specular = material.specular * glm::vec3(pow(cosAlpha, material.shininess));
+		}
 
 		// Compute soft shadow visibility term
 		float visibility = compute_soft_shadow(point, lights[light_num]->position, lights[light_num]->radius, shadow_samples);
@@ -480,7 +534,7 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion)
 
 	if (closest_hit.hit)
 	{
-		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial(), depth_recursion);
+		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial(), closest_hit.tangent, closest_hit.bitangent, depth_recursion);
 	}
 
 	return color;
@@ -502,46 +556,32 @@ void sceneDefinition()
 {
 
 	Material green_diffuse;
-	green_diffuse.ambient = glm::vec3(0.7f, 0.9f, 0.7f);
-	green_diffuse.diffuse = glm::vec3(0.7f, 0.9f, 0.7f);
-
-	Material red_specular;
-	red_specular.ambient = glm::vec3(1.0f, 0.3f, 0.3f);
-	red_specular.diffuse = glm::vec3(1.0f, 0.3f, 0.3f);
-	red_specular.specular = glm::vec3(0.5);
-	red_specular.shininess = 10.0;
-
-	Material blue_specular;
-	blue_specular.ambient = glm::vec3(0.7f, 0.7f, 1.0f);
-	blue_specular.diffuse = glm::vec3(0.7f, 0.7f, 1.0f);
-	blue_specular.specular = glm::vec3(0.6);
-	blue_specular.shininess = 100.0;
-	blue_specular.is_reflective = true;
-	blue_specular.reflection = 1.0;
-
-	// Material green_diffuse;
 	green_diffuse.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
 	green_diffuse.diffuse = glm::vec3(0.3f, 1.0f, 0.3f);
 
-	// Material red_specular;
+	Material red_specular;
 	red_specular.diffuse = glm::vec3(1.0f, 0.2f, 0.2f);
 	red_specular.ambient = glm::vec3(0.01f, 0.02f, 0.02f);
 	red_specular.specular = glm::vec3(0.5);
 	red_specular.shininess = 10.0;
 
-	// Material blue_specular;
+	Material blue_specular;
 	blue_specular.ambient = glm::vec3(0.02f, 0.02f, 0.1f);
 	blue_specular.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);
-	blue_specular.specular = glm::vec3(0.6);
+	blue_specular.specular = glm::vec3(0.5);
 	blue_specular.shininess = 100.0;
 
-	Material refraction;
-	refraction.is_refractive = true;
-	refraction.refractive_index = 2.0f;
+	Material green_sphere;
+	green_sphere.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
+	green_sphere.diffuse = glm::vec3(0.3f, 1.0f, 0.3f);
+	green_sphere.specular = glm::vec3(0.5);
+	green_sphere.shininess = 10;
+	green_sphere.is_anisotropic = true;
+	green_sphere.alpha_x = 0.5f;
 
 	objects.push_back(new Sphere(1.0, glm::vec3(1, -2, 8), blue_specular));
 	objects.push_back(new Sphere(0.5, glm::vec3(-1, -2.5, 6), red_specular));
-	objects.push_back(new Sphere(2.0, glm::vec3(-3, -1, 8), refraction));
+	objects.push_back(new Sphere(2.0, glm::vec3(-4, -1, 8), green_sphere));
 
 	lights.push_back(new Light(glm::vec3(0, 26, 5), glm::vec3(1.0)));
 	lights.push_back(new Light(glm::vec3(0, 1, 12), glm::vec3(0.1)));
