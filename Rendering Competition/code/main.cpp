@@ -1032,10 +1032,14 @@ void sceneDefinition()
 	green_sphere.is_anisotropic = true;
 	green_sphere.alpha_x = 0.8f;
 
+	Material cube_material;
+	cube_material.is_reflective = true;
+	cube_material.reflection = 1.0f;
+
 	// Spheres
-	objects.push_back(new Sphere(1.0, glm::vec3(-2, -1, 5), green_sphere));
-	// objects.push_back(new Sphere(0.5, glm::vec3(0, -2.5, 4), blue_sphere));
-	objects.push_back(new Sphere(0.5, glm::vec3(-1.5, -2.5, 3), red_sphere));
+	objects.push_back(new Sphere(1.0, glm::vec3(-2, -2, 4), green_sphere));
+	objects.push_back(new Sphere(0.5, glm::vec3(-0.5, -2.5, 2.5), blue_sphere));
+	objects.push_back(new Sphere(0.5, glm::vec3(2, -2.5, 4), red_sphere));
 
 	// Lights
 	lights.push_back(new Light(glm::vec3(0, 2.99, 4), glm::vec3(0.05)));
@@ -1056,10 +1060,10 @@ void sceneDefinition()
 	glm::mat4 scaling;
 	glm::mat4 rotation;
 
-	Mesh *cube = new Mesh("../../../Rendering Competition/code/meshes/cube.obj");
-	translation = glm::translate(glm::vec3(1.0f, -2.25f, 4.5f));
+	Mesh *cube = new Mesh("../../../Rendering Competition/code/meshes/cube.obj", cube_material);
+	translation = glm::translate(glm::vec3(0.5f, -2.25f, 5.0f));
 	scaling = glm::scale(glm::vec3(1.5f));
-	rotation = glm::rotate(glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	rotation = glm::rotate(glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 	cube->setTransformation(translation * rotation * scaling);
 	objects.push_back(cube);
@@ -1150,12 +1154,12 @@ int main(int argc, const char *argv[])
 	int totalPixels = width * height;
 	int iteration = 0;
 
-	int aa_samples = 1;	 // Supersampling for anti-aliasing
-	int dof_samples = 1; // Number of samples for depth of field
+	int aa_samples = 16;  // Supersampling for anti-aliasing
+	int dof_samples = 16; // Number of samples for depth of field
 	// DEFAULT 0.5f
-	float aperture_radius = 0.05f; // Controls the size of the blur (lens aperture)
+	float aperture_radius = 0.3f; // Controls the size of the blur (lens aperture)
 	// DEFAULT 8.0f
-	float focal_length = 3.0f; // Distance to the focal plane
+	float focal_length = 4.0f; // Distance to the focal plane
 
 #pragma omp parallel for
 	for (int i = 0; i < width; i++)
