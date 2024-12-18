@@ -386,55 +386,28 @@ glm::vec3 random_point_on_square(float light_size)
 	return glm::vec3(x, 0.0f, z); // Assuming the light is on the x-z plane
 }
 
-float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &light_position,
-						  float light_radius, int shadow_samples)
+float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &random_point)
 {
-	int unblocked_rays = 0; // Count of successful rays
+	// Create a shadow ray from the intersection point to the random point on the light source
+	glm::vec3 light_direction = glm::normalize(random_point - intersection_point);
+	Ray shadow_ray(intersection_point + 1e-4f * light_direction, light_direction); // Avoid self-intersection
 
-	// Convert cone angle to cosine for comparison
-	float cone_angle_deg = 90.0f;
-	float cos_cone_angle = glm::cos(glm::radians(cone_angle_deg / 2.0f));
+	// Check for intersection with scene objects
+	Hit closest_hit;
+	closest_hit.hit = false;
+	closest_hit.distance = INFINITY;
 
-	for (int i = 0; i < shadow_samples; i++)
+	for (int k = 0; k < objects.size(); k++)
 	{
-		// 1. Generate a random point on the light source surface
-		glm::vec3 random_point = light_position + random_point_on_square(light_radius);
-
-		// 2. Create a shadow ray
-		glm::vec3 light_direction = glm::normalize(random_point - intersection_point);
-
-		// // 3. Check if light_direction is within the cone
-		// glm::vec3 cone_direction = glm::vec3(0.0f, -1.0f, 0.0f); // Downward cone
-		// if (glm::dot(-light_direction, cone_direction) > cos_cone_angle)
-		// {
-		// 	continue; // Skip rays outside the cone
-		// }
-
-		Ray shadow_ray(intersection_point + 1e-4f * light_direction, light_direction); // Avoid self-intersection
-
-		// 4. Check for intersection with scene objects
-		Hit closest_hit;
-		closest_hit.hit = false;
-		closest_hit.distance = INFINITY;
-
-		for (int k = 0; k < objects.size(); k++)
+		Hit hit = objects[k]->intersect(shadow_ray);
+		if (hit.hit && hit.distance < closest_hit.distance)
 		{
-			Hit hit = objects[k]->intersect(shadow_ray);
-			if (hit.hit && hit.distance < closest_hit.distance)
-			{
-				closest_hit = hit;
-			}
-		}
-
-		// 5. If no object blocks the light, the ray is unblocked
-		if (!closest_hit.hit || closest_hit.distance >= glm::distance(intersection_point, random_point))
-		{
-			unblocked_rays++;
+			closest_hit = hit;
 		}
 	}
 
-	// 6. Compute visibility term
-	return unblocked_rays / float(shadow_samples);
+	// If no object blocks the light, the ray is unblocked
+	return (closest_hit.hit && closest_hit.distance < glm::distance(intersection_point, random_point)) ? 0.0f : 1.0f;
 }
 
 glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_dir, glm::vec3 normal,
@@ -469,35 +442,56 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 {
 	glm::vec3 color(0.0);
 	float epsilon = 1e-4f;
-	int shadow_samples = 16;
+	int light_samples = 16;
 
 	for (int light_num = 0; light_num < lights.size(); light_num++)
 	{
-		glm::vec3 to_light_dir = glm::normalize(lights[light_num]->position - point);
-		glm::vec3 reflected_from_light_dir = glm::reflect(-to_light_dir, normal);
-		float light_distance = glm::distance(point, lights[light_num]->position);
+		glm::vec3 light_position = lights[light_num]->position;
+		float light_radius = lights[light_num]->radius;
+		glm::vec3 color_contribution(0.0f); // To accumulate the color contribution from the light
 
-		float cosOmega = glm::clamp(glm::dot(normal, to_light_dir), 0.0f, 1.0f);
-		glm::vec3 diffuse = material.diffuse * glm::vec3(cosOmega);
-
-		glm::vec3 specular(0.0f);
-		if (material.is_anisotropic)
+		// Sample multiple points on the light's square surface
+		for (int sample_num = 0; sample_num < light_samples; sample_num++)
 		{
-			// Works only with spheres
-			specular = calculate_ward_specular(to_light_dir, to_camera_dir, normal, tangent, bitangent, material);
-		}
-		else
-		{
-			float cosAlpha = glm::clamp(glm::dot(to_camera_dir, reflected_from_light_dir), 0.0f, 1.0f);
-			specular = material.specular * glm::vec3(pow(cosAlpha, material.shininess));
+			// Sample a random point on the square light source
+			glm::vec3 random_point = light_position + random_point_on_square(light_radius);
+
+			// Calculate direction to the light sample point
+			glm::vec3 to_light_dir = glm::normalize(random_point - point);
+			glm::vec3 reflected_from_light_dir = glm::reflect(-to_light_dir, normal);
+			float light_distance = glm::distance(point, random_point);
+
+			// Compute diffuse and specular components
+			float cosOmega = glm::clamp(glm::dot(normal, to_light_dir), 0.0f, 1.0f);
+			glm::vec3 diffuse = material.diffuse * glm::vec3(cosOmega);
+
+			glm::vec3 specular(0.0f);
+			if (material.is_anisotropic)
+			{
+				// Works only with spheres
+				specular = calculate_ward_specular(to_light_dir, to_camera_dir, normal, tangent, bitangent, material);
+			}
+			else
+			{
+				float cosAlpha = glm::clamp(glm::dot(to_camera_dir, reflected_from_light_dir), 0.0f, 1.0f);
+				specular = material.specular * glm::vec3(pow(cosAlpha, material.shininess));
+			}
+
+			// Compute the soft shadow visibility term for this point on the light
+			float visibility = compute_soft_shadow(point, random_point);
+
+			// Attenuation based on distance
+			float r = max(light_distance, 0.1f);
+			glm::vec3 light_contribution = lights[light_num]->color * (diffuse + specular) * visibility / pow(r, 2.0f);
+
+			// Accumulate the light contribution from this sample point
+			color_contribution += light_contribution;
 		}
 
-		// Compute soft shadow visibility term
-		float visibility = compute_soft_shadow(point, lights[light_num]->position, lights[light_num]->radius, shadow_samples);
-
-		float r = max(light_distance, 0.1f);
-		color += lights[light_num]->color * (diffuse + specular) * visibility / pow(r, 2.0f);
+		// Average the contributions from all samples for this light
+		color += color_contribution / float(light_samples);
 	}
+
 	color += ambient_light * material.ambient;
 
 	if (material.reflection > 0.0f)
@@ -625,7 +619,7 @@ void sceneDefinition()
 	objects.push_back(new Sphere(0.5, glm::vec3(1.5, -2.5, 3), red_sphere));
 
 	// Lights
-	lights.push_back(new Light(glm::vec3(0, 2.99, 4), glm::vec3(0.1)));
+	lights.push_back(new Light(glm::vec3(0, 2.99, 4), glm::vec3(0.05)));
 
 	// Planes
 	// planes above and below
