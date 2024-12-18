@@ -318,7 +318,7 @@ public:
 vector<Light *> lights; ///< A list of lights in the scene
 // glm::vec3 ambient_light(0.1,0.1,0.1);
 //  new ambient light
-glm::vec3 ambient_light(0.001, 0.001, 0.001);
+glm::vec3 ambient_light(0.0005, 0.0005, 0.0005);
 vector<Object *> objects; ///< A list of all objects in the scene
 
 float trace_shadow_ray(Ray shadow_ray, float light_distance)
@@ -380,11 +380,10 @@ glm::vec3 random_point_on_disk(float radius)
 
 glm::vec3 random_point_on_square(float light_size)
 {
-	return glm::vec3(
-		(light_size * (rand() / (float)RAND_MAX - 0.5f)), // X offset
-		0.0f,											  // Y offset (flat square)
-		(light_size * (rand() / (float)RAND_MAX - 0.5f))  // Z offset
-	);
+	float half_size = light_size * 0.5f;
+	float x = (float(rand()) / RAND_MAX) * light_size - half_size;
+	float z = (float(rand()) / RAND_MAX) * light_size - half_size;
+	return glm::vec3(x, 0.0f, z); // Assuming the light is on the x-z plane
 }
 
 float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &light_position,
@@ -399,7 +398,7 @@ float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &
 	for (int i = 0; i < shadow_samples; i++)
 	{
 		// 1. Generate a random point on the light source surface
-		glm::vec3 random_point = light_position + random_point_on_disk(light_radius);
+		glm::vec3 random_point = light_position + random_point_on_square(light_radius);
 
 		// 2. Create a shadow ray
 		glm::vec3 light_direction = glm::normalize(random_point - intersection_point);
@@ -577,44 +576,46 @@ glm::vec3 trace_ray(Ray ray)
  */
 void sceneDefinition()
 {
+	float shininess_plane = 2.0f;
+	float shininess_sphere = 10.0f;
 
 	Material red_plane;
-	red_plane.diffuse = glm::vec3(1.0f, 0.2f, 0.2f);
-	red_plane.ambient = glm::vec3(0.01f, 0.02f, 0.02f);
+	red_plane.diffuse = glm::vec3(1.0f, 0.0f, 0.0f);
+	red_plane.ambient = red_plane.diffuse / glm::vec3(10);
 	red_plane.specular = glm::vec3(0.5);
-	red_plane.shininess = 10.0;
+	red_plane.shininess = shininess_plane;
 
 	Material red_sphere;
 	red_sphere.diffuse = glm::vec3(1.0f, 0.2f, 0.2f);
-	red_sphere.ambient = glm::vec3(0.01f, 0.02f, 0.02f);
+	red_sphere.ambient = red_sphere.diffuse / glm::vec3(10);
 	red_sphere.specular = glm::vec3(0.5);
-	red_sphere.shininess = 10.0;
+	red_sphere.shininess = shininess_sphere;
 	red_sphere.is_anisotropic = true;
 	red_sphere.alpha_y = 0.8f;
 
 	Material blue_plane;
-	blue_plane.ambient = glm::vec3(0.02f, 0.02f, 0.1f);
-	blue_plane.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);
+	blue_plane.diffuse = glm::vec3(0.0f, 0.0f, 1.0f);
+	blue_plane.ambient = blue_plane.diffuse / glm::vec3(10);
 	blue_plane.specular = glm::vec3(0.5);
-	blue_plane.shininess = 100.0;
+	blue_plane.shininess = shininess_plane;
 
 	Material blue_sphere;
-	blue_sphere.ambient = glm::vec3(0.02f, 0.02f, 0.1f);
 	blue_sphere.diffuse = glm::vec3(0.2f, 0.2f, 1.0f);
+	blue_sphere.ambient = blue_sphere.diffuse / glm::vec3(10);
 	blue_sphere.specular = glm::vec3(0.5);
-	blue_sphere.shininess = 100.0;
+	blue_sphere.shininess = shininess_sphere;
 
 	Material green_plane;
-	green_plane.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
-	green_plane.diffuse = glm::vec3(0.3f, 1.0f, 0.3f);
+	green_plane.diffuse = glm::vec3(0.0f, 1.0f, 0.0f);
+	green_plane.ambient = green_plane.diffuse / glm::vec3(10);
 	green_plane.specular = glm::vec3(0.5);
-	green_plane.shininess = 10;
+	green_plane.shininess = shininess_plane;
 
 	Material green_sphere;
-	green_sphere.ambient = glm::vec3(0.03f, 0.1f, 0.03f);
-	green_sphere.diffuse = glm::vec3(0.3f, 1.0f, 0.3f);
+	green_sphere.diffuse = glm::vec3(0.2f, 1.0f, 0.2f);
+	green_sphere.ambient = green_sphere.diffuse / glm::vec3(10);
 	green_sphere.specular = glm::vec3(0.5);
-	green_sphere.shininess = 10;
+	green_sphere.shininess = shininess_sphere;
 	green_sphere.is_anisotropic = true;
 	green_sphere.alpha_x = 0.8f;
 
@@ -624,20 +625,19 @@ void sceneDefinition()
 	objects.push_back(new Sphere(0.5, glm::vec3(1.5, -2.5, 3), red_sphere));
 
 	// Lights
-	lights.push_back(new Light(glm::vec3(0, 2.5, 3), glm::vec3(0.1)));
+	lights.push_back(new Light(glm::vec3(0, 2.99, 4), glm::vec3(0.1)));
 
 	// Planes
-
 	// planes above and below
 	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0)));
 	objects.push_back(new Plane(glm::vec3(0, 3, 0), glm::vec3(0.0, -1, 0)));
 
 	// planes right and left
 	objects.push_back(new Plane(glm::vec3(-3, 0, 0), glm::vec3(1.0, 0.0, 0.0), red_plane));
-	objects.push_back(new Plane(glm::vec3(3, 0, 0), glm::vec3(-1.0, 0.0, 0.0), blue_plane));
+	objects.push_back(new Plane(glm::vec3(3, 0, 0), glm::vec3(-1.0, 0.0, 0.0), green_plane));
 
 	// plane front
-	objects.push_back(new Plane(glm::vec3(0, 0, 6), glm::vec3(0.0, 0.0, -1.0), green_plane));
+	objects.push_back(new Plane(glm::vec3(0, 0, 6), glm::vec3(0.0, 0.0, -1.0)));
 }
 glm::vec3 toneMapping(glm::vec3 intensity)
 {
