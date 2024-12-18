@@ -808,6 +808,14 @@ float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &
 	closest_hit.hit = false;
 	closest_hit.distance = INFINITY;
 
+	// 3. Check if light_direction is within the cone
+	float cos_cone_angle = glm::cos(glm::radians(80.0f));
+	glm::vec3 cone_direction = glm::vec3(0.0f, -1.0f, 0.0f); // Downward cone
+	if (glm::dot(-light_direction, cone_direction) < cos_cone_angle && glm::dot(-light_direction, cone_direction) > -0.01)
+	{
+		return 0.0f; // Skip rays outside the cone
+	}
+
 	for (int k = 0; k < objects.size(); k++)
 	{
 		Hit hit = objects[k]->intersect(shadow_ray);
