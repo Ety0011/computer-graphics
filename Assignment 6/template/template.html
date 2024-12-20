@@ -10,13 +10,41 @@
             var vertexTerrainShaderCode =
                 `#version 300 es
 
+                in vec3 a_position;
+                in vec2 a_texCoord;
+
+                out vec2 v_texCoord;
+
+                uniform mat4 modelMatrix;
+                uniform mat4 viewMatrix;
+                uniform mat4 projectionMatrix;
+                uniform vec3 lightDirection;
+                uniform sampler2D u_heightmap;
+                uniform float u_maxHeight;
+
+                void main() {
+                    float height = texture(u_heightmap, a_texCoord).r;
+
+                    v_texCoord = a_texCoord;
+                    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(a_position.x, height * u_maxHeight, a_position.z, 1.0);
                 }`;
 
             var fragmentTerrainShaderCode =
                 `#version 300 es
                 precision highp float;
 
+                in vec2 v_texCoord;
 
+                uniform sampler2D u_heightmap;
+
+                out vec4 out_color;
+
+                void main() {
+                    float height = texture(u_heightmap, v_texCoord).r;
+
+                    // vec3 color = vec3(height);
+
+                    out_color = vec4(color, 1.0);
                 }`;
 
             var vertexShaderCode =
@@ -42,6 +70,7 @@
                     v_viewDirection  = -vec3(viewMatrix * modelMatrix * vec4(a_position,1.0)); // in the eye space the camera is in (0,0,0)!
                     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(a_position,1.0);
                 }`;
+            
             var fragmentShaderCode =
                 `#version 300 es
                 precision highp float;
@@ -102,8 +131,8 @@
                 createGLSLProgram(shaderProgram, vertexShaderCode, fragmentShaderCode);
 
                 //------------- Creating shader program for the terrain rendering ---------------
-                //terrainShaderProgram = gl.createProgram();
-                //createGLSLProgram(terrainShaderProgram, vertexTerrainShaderCode, fragmentTerrainShaderCode);
+                terrainShaderProgram = gl.createProgram();
+                createGLSLProgram(terrainShaderProgram, vertexTerrainShaderCode, fragmentTerrainShaderCode);
             }
 
             function createVAO(vao, shader, vertices, normals, colors){
@@ -156,17 +185,19 @@
                 //------------- Creating VBO and VAO for terrain ---------------
 
                 //buffer for the terrain_vaovar normalBuffer = gl.createBuffer();
-                //let terrainVertices = gl.createBuffer();
-                //gl.bindBuffer(gl.ARRAY_BUFFER, terrainVertices);
-                //gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(terrain_vertices), gl.STATIC_DRAW);
-                //gl.bindBuffer(gl.ARRAY_BUFFER, terrainVertices);
+                let terrainVertexBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, terrainVertexBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(terrain_vertices), gl.STATIC_DRAW);
+                gl.vertexAttribPointer(terrainVertexBuffer, 3, gl.FLOAT, false, 0, 0);
 
                 // Creating VAO for the terrain
-                //terrain_vao = gl.createVertexArray();
-                //gl.bindVertexArray(terrain_vao);
-                //let positionAttributeLocation = gl.getAttribLocation(terrainShaderProgram, "a_position");
-                //gl.enableVertexAttribArray(positionAttributeLocation);
-                //gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
+                terrain_vao = gl.createVertexArray();
+                gl.bindVertexArray(terrain_vao);
+
+                gl.bindBuffer(gl.ARRAY_BUFFER, terrainVertexBuffer);
+                let positionAttributeLocation = gl.getAttribLocation(terrainShaderProgram, "a_position");
+                gl.enableVertexAttribArray(positionAttributeLocation);
+                gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
             }
 
             function draw(){
