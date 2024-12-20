@@ -6,23 +6,39 @@ in vec3 a_position;
 
 out float v_height;
 out vec2 v_texCoord;
+out vec3 v_normal;
+out vec3 v_position;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
-uniform vec3 lightDirection;
+
 uniform sampler2D u_heightmap;
 
 void main() {
     vec2 texCoord = vec2(a_position.x + 0.5, a_position.z + 0.5);
-    float height = texture(u_heightmap, texCoord).r;
 
+    float heightLeft = texture(u_heightmap, texCoord + vec2(-0.01, 0.0)).r;
+    float heightRight = texture(u_heightmap, texCoord + vec2(0.01, 0.0)).r;
+    float heightDown = texture(u_heightmap, texCoord + vec2(0.0, -0.01)).r;
+    float heightUp = texture(u_heightmap, texCoord + vec2(0.0, 0.01)).r;
+
+    vec3 du = vec3(0.02, heightRight - heightLeft, 0.0);
+    vec3 dv = vec3(0.0, heightUp - heightDown, 0.02);
+
+    vec3 normal = normalize(cross(du, dv));
+
+    mat3 normal_matrix = transpose(inverse(mat3(modelMatrix)));
+
+    float height = texture(u_heightmap, texCoord).r;
     if (height <= 0.05) {
         height = 0.05;
     }
 
+    v_normal = normalize(normal_matrix * normal);
     v_height = height;
     v_texCoord = texCoord;
+    v_position = vec3(modelMatrix * vec4(a_position.x, height * 0.3, a_position.z, 1.0));
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(a_position.x, height * 0.3, a_position.z, 1.0);
 }`;
 
@@ -32,22 +48,33 @@ precision highp float;
 
 in float v_height;
 in vec2 v_texCoord;
+in vec3 v_normal;
+in vec3 v_position;
 
 out vec4 out_color;
 
 uniform sampler2D u_grassTexture;
 uniform sampler2D u_sandTexture;
 uniform sampler2D u_graniteTexture;
+uniform vec3 light_direction;
+uniform vec3 view_position;
+
+const vec3 lightColor = vec3(1.0,1.0,1.0);
+const float ambientCoeff = 0.05;
+const float diffuseCoeff = 0.8;
+const float specularCoeff = 0.01;
+const float shininessCoeff = 1.0;
+
+const float gamma = 1.8;
 
 void main() {
-    vec4 color;
+    vec3 sandColor = texture(u_sandTexture, v_texCoord).xyz;
+    vec3 grassColor = texture(u_grassTexture, v_texCoord).xyz;
+    vec3 graniteColor = texture(u_graniteTexture, v_texCoord).xyz;
+    vec3 whiteColor = vec3(1.0);
+    vec3 waterColor = vec3(0.0, 0.0, 1.0);
 
-    vec4 sandColor = texture(u_sandTexture, v_texCoord);
-    vec4 grassColor = texture(u_grassTexture, v_texCoord);
-    vec4 graniteColor = texture(u_graniteTexture, v_texCoord);
-    vec4 whiteColor = vec4(1.0);
-    vec4 waterColor = vec4(0.0, 0.0, 1.0, 1.0);
-
+    vec3 color;
     if (v_height <= 0.05885) {
         color = waterColor;
     } else if (v_height < 0.06) {
@@ -64,7 +91,21 @@ void main() {
         color = mix(graniteColor, whiteColor, blend);
     }
 
-    out_color = color;
+    vec3 lightDirection = normalize(-light_direction);
+    vec3 viewDirection = normalize(view_position - v_position);
+
+    vec3 V = normalize(viewDirection);
+    vec3 N = normalize(v_normal);
+    vec3 L = normalize(lightDirection);
+    vec3 R = normalize(reflect(-L,N));
+
+    vec3 ambient = ambientCoeff * color;
+    vec3 diffuse = vec3(diffuseCoeff) * lightColor * color * vec3(max(dot(N,L), 0.0));
+    vec3 specular = vec3(specularCoeff) * vec3(pow(max(dot(R,V), 0.0), shininessCoeff));
+
+    color = ambient + diffuse + specular;
+    color = pow(color,vec3(1.0/gamma));
+    out_color = vec4(color, 1.0);
 }`;
 
 var vertexShaderCode =
@@ -302,6 +343,12 @@ function draw(){
     gl.uniformMatrix4fv(terrainViewMatrixLocation, false, viewMatrix);
     gl.uniformMatrix4fv(terrainProjectionMatrixLocation, false, projectionMatrix);
     gl.uniform3fv(terrainLightDirectionLocation, lightDirection);
+
+    let view_position_location = gl.getUniformLocation(terrainShaderProgram, "view_position");
+    gl.uniform3fv(view_position_location, camera_position);
+
+    let light_direction_location = gl.getUniformLocation(terrainShaderProgram, "light_direction");
+    gl.uniform3fv(light_direction_location, lightDirection);
     
     // ------------ Rendering the terrain ----------------------
     gl.bindVertexArray(terrain_vao);
