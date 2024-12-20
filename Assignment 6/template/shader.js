@@ -3,7 +3,6 @@ var vertexTerrainShaderCode =
 `#version 300 es
 
 in vec3 a_position;
-in vec2 a_texCoord;
 
 out vec2 v_texCoord;
 
@@ -16,7 +15,7 @@ uniform sampler2D u_heightmap;
 void main() {
     float height = texture(u_heightmap, a_texCoord).r;
 
-    v_texCoord = a_texCoord;
+    v_texCoord = vec2(a_position.x + 0.5, a_position.z + 0.5);
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(a_position.x, height, a_position.z, 1.0);
 }`;
 
@@ -33,7 +32,7 @@ out vec4 out_color;
 void main() {
     float height = texture(u_heightmap, v_texCoord).r;
 
-    // vec3 color = vec3(height);
+    vec3 color = vec3(height);
 
     out_color = vec4(color, 1.0);
 }`;
@@ -185,7 +184,6 @@ function initBuffers(){
     terrain_vao = gl.createVertexArray();
     gl.bindVertexArray(terrain_vao);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, terrainVertexBuffer);
     let positionAttributeLocation = gl.getAttribLocation(terrainShaderProgram, "a_position");
     gl.enableVertexAttribArray(positionAttributeLocation);
     gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
@@ -245,29 +243,11 @@ function draw(){
     gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
     gl.uniform3fv(lightDirectionLocation, lightDirection);
 
-    // drawing the two cubes
-    gl.bindVertexArray(cube_vao);
-    mat4.fromTranslation(modelMatrix, vec3.fromValues(-1.5, 0.0, 0.0));
-    gl.uniformMatrix4fv(modelMatrixLocation, false, modelMatrix);
-    gl.drawArrays(gl.TRIANGLES, 0, cube_vertices.length/3);
-
-    mat4.fromTranslation(modelMatrix, vec3.fromValues(1.5, 0.0, 0.0));
-    gl.uniformMatrix4fv(modelMatrixLocation, false, modelMatrix);
-    gl.drawArrays(gl.TRIANGLES, 0, cube_vertices.length/3);
-
     //drawing the sphere
     gl.bindVertexArray(sphere_vao);
     mat4.fromTranslation(modelMatrix,vec3.fromValues(0.0, 0.0, 0.0));
     gl.uniformMatrix4fv(modelMatrixLocation, false, modelMatrix);
     gl.drawArrays(gl.TRIANGLES, 0, sphere_vertices.length/3);
-
-
-    //drawing the plane
-    gl.bindVertexArray(plane_vao);
-    mat4.fromTranslation(modelMatrix,vec3.fromValues(0.0, -0.5, 0.0));
-    mat4.scale(modelMatrix, modelMatrix, vec3.fromValues(7,7,7));
-    gl.uniformMatrix4fv(modelMatrixLocation, false, modelMatrix);
-    gl.drawArrays(gl.TRIANGLES, 0, plane_vertices.length/3);
 
     //-----------------------------------------------
     //---------- Drawing the terrain-----------------
@@ -280,18 +260,32 @@ function draw(){
     // Note that the code for setting up the textures
     // is already provided below.
 
+    gl.useProgram(terrainShaderProgram);
+
+    // getting the locations of uniforms
+    let terrainModelMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"modelMatrix");
+    let terrainViewMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"viewMatrix");
+    let terrainProjectionMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"projectionMatrix");
+    let terrainLightDirectionLocation = gl.getUniformLocation(terrainShaderProgram,"lightDirection");
+
+    // setting the uniforms which are common for the entires scene
+    gl.uniformMatrix4fv(terrainViewMatrixLocation, false, viewMatrix);
+    gl.uniformMatrix4fv(terrainProjectionMatrixLocation, false, projectionMatrix);
+    gl.uniform3fv(terrainLightDirectionLocation, lightDirection);
+    
+    // ------------ Rendering the terrain ----------------------
+    gl.bindVertexArray(terrain_vao);
+    let terrainModelMatrix = mat4.create();
+    gl.uniformMatrix4fv(terrainModelMatrixLocation, false, terrainModelMatrix);
 
     // ------------ Setting up the textures ----------------
-    //for (let i = 0; i < terrainTextures.length; i++){
-    //    let textureLocation = gl.getUniformLocation(terrainShaderProgram, terrainTextures[i].uniformName);
-    //    gl.activeTexture(gl.TEXTURE0 + i);
-    //    gl.bindTexture(gl.TEXTURE_2D, terrainTextures[i].glTexture);
-    //    gl.uniform1i(textureLocation, i);
-    //}
-
-    // ------------ Rendering the terrain ----------------------
-    //gl.bindVertexArray(terrain_vao);
-    //gl.drawArrays(gl.TRIANGLES, 0, terrain_vertices.length/3);
+    for (let i = 0; i < terrainTextures.length; i++){
+       let textureLocation = gl.getUniformLocation(terrainShaderProgram, terrainTextures[i].uniformName);
+       gl.activeTexture(gl.TEXTURE0 + i);
+       gl.bindTexture(gl.TEXTURE_2D, terrainTextures[i].glTexture);
+       gl.uniform1i(textureLocation, i);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, terrain_vertices.length/3);
 
     window.requestAnimationFrame(function() {draw();});
 }
@@ -322,12 +316,12 @@ function start(){
 
     // a list of the paths to the files with textures
     // add here the paths to the files from which the textures should be read
-    var textureFiles = [];
+    var textureFiles = ["./Lugano.png"];
 
     // textureVariables should contain the names of uniforms in the shader program
     // IMPORTAN: if you are going to use the code we provide,
     // make sure the names below are identical to the one you use in the shader program
-    var textureVariables = [];
+    var textureVariables = ["u_heightmap"];
 
     function count_down(){
     leftToRead = leftToRead - 1;
