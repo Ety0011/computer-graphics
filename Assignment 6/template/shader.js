@@ -5,6 +5,7 @@ var vertexTerrainShaderCode =
 in vec3 a_position;
 
 out float v_height;
+out vec2 v_texCoord;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -16,8 +17,13 @@ void main() {
     vec2 texCoord = vec2(a_position.x + 0.5, a_position.z + 0.5);
     float height = texture(u_heightmap, texCoord).r;
 
+    if (height <= 0.05) {
+        height = 0.05;
+    }
+
     v_height = height;
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(a_position.x, height * 0.5, a_position.z, 1.0);
+    v_texCoord = texCoord;
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(a_position.x, height * 0.3, a_position.z, 1.0);
 }`;
 
 var fragmentTerrainShaderCode =
@@ -25,13 +31,40 @@ var fragmentTerrainShaderCode =
 precision highp float;
 
 in float v_height;
+in vec2 v_texCoord;
 
 out vec4 out_color;
 
-void main() {
-    vec3 color = vec3(v_height);
+uniform sampler2D u_grassTexture;
+uniform sampler2D u_sandTexture;
+uniform sampler2D u_graniteTexture;
 
-    out_color = vec4(color, 1.0);
+void main() {
+    vec4 color;
+
+    vec4 sandColor = texture(u_sandTexture, v_texCoord);
+    vec4 grassColor = texture(u_grassTexture, v_texCoord);
+    vec4 graniteColor = texture(u_graniteTexture, v_texCoord);
+    vec4 whiteColor = vec4(1.0);
+    vec4 waterColor = vec4(0.0, 0.0, 1.0, 1.0);
+
+    if (v_height <= 0.05885) {
+        color = waterColor;
+    } else if (v_height < 0.06) {
+        float blend = smoothstep(0.05, 0.06, v_height);
+        color = mix(waterColor, sandColor, blend);
+    } else if (v_height < 0.1) {
+        float blend = smoothstep(0.06, 0.1, v_height);
+        color = mix(sandColor, grassColor, blend);
+    } else if (v_height < 0.3) {
+        float blend = smoothstep(0.1, 0.3, v_height);
+        color = mix(grassColor, graniteColor, blend);
+    } else {
+        float blend = smoothstep(0.3, 0.4, v_height);
+        color = mix(graniteColor, whiteColor, blend);
+    }
+
+    out_color = color;
 }`;
 
 var vertexShaderCode =
@@ -293,14 +326,15 @@ function draw(){
 // The function below creates textures and sets default parameters
 // Feel free to play around with them to see how your rendering changes
 function createTextures(){
-    for(let i = 0; i < terrainTextures.length; i++){
-        terrainTextures[i].glTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, terrainTextures[i].glTexture);
+    for (let texture of terrainTextures) {
+        texture.glTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture.glTexture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, terrainTextures[i]);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture);
         gl.generateMipmap(gl.TEXTURE_2D);
     }
+    
 }
 function start(){
 
@@ -316,12 +350,12 @@ function start(){
 
     // a list of the paths to the files with textures
     // add here the paths to the files from which the textures should be read
-    var textureFiles = ["./Lugano.png"];
+    var textureFiles = ["./Lugano.png", "./grass.jpg", "./sand.jpg", "./granite.jpg"];
 
     // textureVariables should contain the names of uniforms in the shader program
     // IMPORTAN: if you are going to use the code we provide,
     // make sure the names below are identical to the one you use in the shader program
-    var textureVariables = ["u_heightmap"];
+    var textureVariables = ["u_heightmap", "u_grassTexture", "u_sandTexture", "u_graniteTexture"];
 
     function count_down(){
     leftToRead = leftToRead - 1;
