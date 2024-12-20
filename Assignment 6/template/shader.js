@@ -4,7 +4,7 @@ var vertexTerrainShaderCode =
 
 in vec3 a_position;
 
-out vec2 v_texCoord;
+out float v_height;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -13,26 +13,23 @@ uniform vec3 lightDirection;
 uniform sampler2D u_heightmap;
 
 void main() {
-    float height = texture(u_heightmap, a_texCoord).r;
+    vec2 texCoord = vec2(a_position.x + 0.5, a_position.z + 0.5);
+    float height = texture(u_heightmap, texCoord).r;
 
-    v_texCoord = vec2(a_position.x + 0.5, a_position.z + 0.5);
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(a_position.x, height, a_position.z, 1.0);
+    v_height = height;
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(a_position.x, height * 0.5, a_position.z, 1.0);
 }`;
 
 var fragmentTerrainShaderCode =
 `#version 300 es
 precision highp float;
 
-in vec2 v_texCoord;
-
-uniform sampler2D u_heightmap;
+in float v_height;
 
 out vec4 out_color;
 
 void main() {
-    float height = texture(u_heightmap, v_texCoord).r;
-
-    vec3 color = vec3(height);
+    vec3 color = vec3(v_height);
 
     out_color = vec4(color, 1.0);
 }`;
@@ -276,6 +273,9 @@ function draw(){
     // ------------ Rendering the terrain ----------------------
     gl.bindVertexArray(terrain_vao);
     let terrainModelMatrix = mat4.create();
+    mat4.fromTranslation(terrainModelMatrix, vec3.fromValues(0.0, -5.0, 0.0));
+    let scaleFactor = 20.0;
+    mat4.scale(terrainModelMatrix, terrainModelMatrix, vec3.fromValues(scaleFactor, scaleFactor, scaleFactor));
     gl.uniformMatrix4fv(terrainModelMatrixLocation, false, terrainModelMatrix);
 
     // ------------ Setting up the textures ----------------
