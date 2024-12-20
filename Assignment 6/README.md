@@ -1,5 +1,5 @@
 
-# Assignment 5: Rendering Graphics Pipeline with WebGL
+# Assignment 6: Texturing
 
 **Authors**: Etienne Orio, Leonardo Asaro
 
@@ -7,6 +7,6 @@
 
 This submission includes solutions to the following exercises:
 
-- **Exercise 1**: Loading maps with vertex shaders
+- **Exercise 1**: Loading displacement map with vertex shaders
 - **Exercise 2**: Applying textures based on height
-- **Exercise 3**: Implementation of phong model on the map
+- **Exercise 3**: Implementation of phong model on the terrain
