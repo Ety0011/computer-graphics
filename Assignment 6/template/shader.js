@@ -56,8 +56,8 @@ out vec4 out_color;
 uniform sampler2D u_grassTexture;
 uniform sampler2D u_sandTexture;
 uniform sampler2D u_graniteTexture;
-uniform vec3 light_direction;
-uniform vec3 view_position;
+uniform vec3 lightDirection;
+uniform vec3 viewPosition;
 
 const vec3 lightColor = vec3(1.0,1.0,1.0);
 const float ambientCoeff = 0.05;
@@ -91,8 +91,8 @@ void main() {
         color = mix(graniteColor, whiteColor, blend);
     }
 
-    vec3 lightDirection = normalize(-light_direction);
-    vec3 viewDirection = normalize(view_position - v_position);
+    vec3 lightDirection = normalize(-lightDirection);
+    vec3 viewDirection = normalize(viewPosition - v_position);
 
     vec3 V = normalize(viewDirection);
     vec3 N = normalize(v_normal);
@@ -272,7 +272,7 @@ function draw(){
     let camera_x = camera_distance * Math.sin(camera_polar_angle) * Math.cos(camera_azimuthal_angle);
     let camera_y = camera_distance * Math.cos(camera_polar_angle);
     let camera_z = -camera_distance * Math.sin(camera_polar_angle) * Math.sin(camera_azimuthal_angle);
-    let camera_position = vec3.fromValues(camera_x, camera_y, camera_z);
+    let cameraPosition = vec3.fromValues(camera_x, camera_y, camera_z);
 
     // computing the light direction from the angles
     let light_x = Math.sin(light_polar_angle) * Math.cos(light_azimuthal_angle);
@@ -282,7 +282,7 @@ function draw(){
 
     // view matrix
     let viewMatrix = mat4.create();
-    mat4.lookAt(viewMatrix, camera_position, vec3.fromValues(0,0,0), vec3.fromValues(0,1,0));
+    mat4.lookAt(viewMatrix, cameraPosition, vec3.fromValues(0,0,0), vec3.fromValues(0,1,0));
     // projection matrix
     let projectionMatrix = mat4.create();
     mat4.perspective(projectionMatrix, camera_fov, 1.0, 0.1, 40.0);
@@ -334,37 +334,37 @@ function draw(){
     gl.useProgram(terrainShaderProgram);
 
     // getting the locations of uniforms
-    let terrainModelMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"modelMatrix");
-    let terrainViewMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"viewMatrix");
-    let terrainProjectionMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"projectionMatrix");
-    let terrainLightDirectionLocation = gl.getUniformLocation(terrainShaderProgram,"lightDirection");
+    let tModelMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"modelMatrix");
+    let tViewMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"viewMatrix");
+    let tProjectionMatrixLocation = gl.getUniformLocation(terrainShaderProgram,"projectionMatrix");
+    let tLightDirectionLocation = gl.getUniformLocation(terrainShaderProgram,"lightDirection");
+    let viewPositionLocation = gl.getUniformLocation(terrainShaderProgram, "viewPosition");
 
-    // setting the uniforms which are common for the entires scene
-    gl.uniformMatrix4fv(terrainViewMatrixLocation, false, viewMatrix);
-    gl.uniformMatrix4fv(terrainProjectionMatrixLocation, false, projectionMatrix);
-    gl.uniform3fv(terrainLightDirectionLocation, lightDirection);
-
-    let view_position_location = gl.getUniformLocation(terrainShaderProgram, "view_position");
-    gl.uniform3fv(view_position_location, camera_position);
-
-    let light_direction_location = gl.getUniformLocation(terrainShaderProgram, "light_direction");
-    gl.uniform3fv(light_direction_location, lightDirection);
-    
-    // ------------ Rendering the terrain ----------------------
-    gl.bindVertexArray(terrain_vao);
-    let terrainModelMatrix = mat4.create();
-    mat4.fromTranslation(terrainModelMatrix, vec3.fromValues(0.0, -5.0, 0.0));
+    let tModelMatrix = mat4.create();
     let scaleFactor = 20.0;
-    mat4.scale(terrainModelMatrix, terrainModelMatrix, vec3.fromValues(scaleFactor, scaleFactor, scaleFactor));
-    gl.uniformMatrix4fv(terrainModelMatrixLocation, false, terrainModelMatrix);
+    mat4.fromTranslation(tModelMatrix, vec3.fromValues(0.0, -5.0, 0.0));
+    mat4.scale(tModelMatrix, tModelMatrix, vec3.fromValues(scaleFactor, scaleFactor, scaleFactor));
 
-    // ------------ Setting up the textures ----------------
+    let tViewMatrix = mat4.create();
+    mat4.lookAt(tViewMatrix, cameraPosition, vec3.fromValues(0,0,0), vec3.fromValues(0,1,0));
+
+    let tProjectionMatrix = mat4.create();
+    mat4.perspective(tProjectionMatrix, camera_fov, 1.0, 0.1, 40.0);
+    
+    gl.uniformMatrix4fv(tModelMatrixLocation, false, tModelMatrix);
+    gl.uniformMatrix4fv(tViewMatrixLocation, false, viewMatrix);
+    gl.uniformMatrix4fv(tProjectionMatrixLocation, false, projectionMatrix);
+    gl.uniform3fv(tLightDirectionLocation, lightDirection);
+    gl.uniform3fv(viewPositionLocation, cameraPosition);
+    
     for (let i = 0; i < terrainTextures.length; i++){
        let textureLocation = gl.getUniformLocation(terrainShaderProgram, terrainTextures[i].uniformName);
        gl.activeTexture(gl.TEXTURE0 + i);
        gl.bindTexture(gl.TEXTURE_2D, terrainTextures[i].glTexture);
        gl.uniform1i(textureLocation, i);
     }
+
+    gl.bindVertexArray(terrain_vao);
     gl.drawArrays(gl.TRIANGLES, 0, terrain_vertices.length/3);
 
     window.requestAnimationFrame(function() {draw();});
@@ -397,12 +397,22 @@ function start(){
 
     // a list of the paths to the files with textures
     // add here the paths to the files from which the textures should be read
-    var textureFiles = ["./Lugano.png", "./grass.jpg", "./sand.jpg", "./granite.jpg"];
+    var textureFiles = [
+        "./Lugano.png",
+        "./grass.jpg",
+        "./sand.jpg",
+        "./granite.jpg"
+    ];
 
     // textureVariables should contain the names of uniforms in the shader program
     // IMPORTAN: if you are going to use the code we provide,
     // make sure the names below are identical to the one you use in the shader program
-    var textureVariables = ["u_heightmap", "u_grassTexture", "u_sandTexture", "u_graniteTexture"];
+    var textureVariables = [
+        "u_heightmap",
+        "u_grassTexture",
+        "u_sandTexture",
+        "u_graniteTexture"
+    ];
 
     function count_down(){
     leftToRead = leftToRead - 1;
