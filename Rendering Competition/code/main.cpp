@@ -100,8 +100,6 @@ struct Hit
 	glm::vec3 intersection; ///< Point of Intersection
 	float distance;			///< Distance from the origin of the ray to the intersection point
 	Object *object;			///< A pointer to the intersected object
-	glm::vec3 tangent = glm::vec3(0.0f);
-	glm::vec3 bitangent = glm::vec3(0.0f);
 };
 
 // geoemtry
@@ -205,19 +203,6 @@ public:
 			hit.normal = glm::normalize(hit.intersection - center);
 			hit.distance = glm::distance(ray.origin, hit.intersection);
 			hit.object = this;
-
-			glm::vec3 normal = hit.normal;
-			glm::vec3 arbitrary_up = glm::vec3(0.0f, 1.0f, 0.0f);
-			if (glm::dot(normal, arbitrary_up) > 0.999f)
-			{
-				arbitrary_up = glm::vec3(1.0f, 0.0f, 0.0f);
-			}
-
-			glm::vec3 tangent = glm::normalize(glm::cross(normal, arbitrary_up));
-			glm::vec3 bitangent = glm::cross(normal, tangent);
-
-			hit.tangent = tangent;
-			hit.bitangent = bitangent;
 		}
 		else
 		{
@@ -842,8 +827,7 @@ glm::vec3 random_point_on_square(float light_size)
 	return glm::vec3(x, 0.0f, z);
 }
 
-glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_dir, glm::vec3 normal,
-								  glm::vec3 tangent, glm::vec3 bitangent, Material material)
+glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_dir, glm::vec3 normal, Material material)
 {
 	glm::vec3 halfVector = glm::normalize(to_light_dir + to_camera_dir);
 
@@ -852,6 +836,14 @@ glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_di
 
 	if (NdotL < 0.0f || NdotV < 0.0f)
 		return glm::vec3(0.0);
+
+	glm::vec3 arbitrary_up = glm::vec3(0.0f, 1.0f, 0.0f);
+	if (glm::dot(normal, arbitrary_up) > 0.999f)
+	{
+		arbitrary_up = glm::vec3(1.0f, 0.0f, 0.0f);
+	}
+	glm::vec3 tangent = glm::normalize(glm::cross(normal, arbitrary_up));
+	glm::vec3 bitangent = glm::cross(normal, tangent);
 
 	float HdotN = glm::dot(halfVector, normal);
 	float HdotT = glm::dot(halfVector, tangent);
@@ -899,7 +891,7 @@ float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &
  @param view_direction A normalized direction from the point to the viewer/camera
  @param material A material structure representing the material of the object
 */
-glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir, Material material, glm::vec3 tangent, glm::vec3 bitangent, int depth_recursion)
+glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir, Material material, int depth_recursion)
 {
 	glm::vec3 color(0.0);
 	float epsilon = 1e-4f;
@@ -926,7 +918,7 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 			if (material.is_anisotropic)
 			{
 				// Works only with spheres
-				specular = calculate_ward_specular(to_light_dir, to_camera_dir, normal, tangent, bitangent, material);
+				specular = calculate_ward_specular(to_light_dir, to_camera_dir, normal, material);
 			}
 			else
 			{
@@ -1003,7 +995,7 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion)
 
 	if (closest_hit.hit)
 	{
-		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial(), closest_hit.tangent, closest_hit.bitangent, depth_recursion);
+		color = PhongModel(closest_hit.intersection, closest_hit.normal, glm::normalize(-ray.direction), closest_hit.object->getMaterial(), depth_recursion);
 	}
 
 	return color;
@@ -1376,8 +1368,8 @@ int main(int argc, const char *argv[])
 	clock_t t = clock();
 	clock_t start_time = clock();
 
-	int width = 100;  // width of the image
-	int height = 100; // height of the image
+	int width = 640;  // width of the image
+	int height = 480; // height of the image
 	float fov = 90;	  // field of view
 
 	sceneDefinition();
