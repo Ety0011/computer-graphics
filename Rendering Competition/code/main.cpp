@@ -7,6 +7,7 @@
 #include <cmath>
 #include <ctime>
 #include <vector>
+#include "glm/gtx/norm.hpp"
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 
@@ -19,7 +20,59 @@
 #include "Image.h"
 #include "Material.h"
 
+#include "glm/gtc/random.hpp"
+
 using namespace std;
+
+// Tools
+
+float getDensity(const glm::vec3 &position)
+{
+	return glm::smoothstep(0.0f, 1.0f, glm::length(position) - 5.0f);
+}
+
+glm::vec3 randomHemisphereDirection(const glm::vec3 &normal = glm::vec3(0.0f, 0.0f, 1.0f))
+{
+	// Use glm to generate random spherical coordinates
+	float theta = glm::linearRand(0.0f, glm::two_pi<float>()); // Azimuthal angle
+	float phi = glm::linearRand(0.0f, glm::half_pi<float>());  // Polar angle (only half-sphere)
+
+	// Convert spherical coordinates to Cartesian coordinates
+	glm::vec3 randomDir(
+		std::sin(phi) * std::cos(theta),
+		std::sin(phi) * std::sin(theta),
+		std::cos(phi));
+
+	// If a normal is provided, align the random direction with the hemisphere around the normal
+	if (normal != glm::vec3(0.0f, 0.0f, 1.0f))
+	{
+		randomDir = glm::dot(randomDir, normal) > 0.0f ? randomDir : -randomDir;
+	}
+
+	return randomDir;
+}
+
+/**
+ * Class representing a single photon.
+ */
+class Photon
+{
+public:
+	glm::vec3 position;	 ///< Position of the photon
+	glm::vec3 direction; ///< Direction of the photon's travel
+	glm::vec3 power;	 ///< Power (color/intensity) carried by the photon
+
+	/**
+	 * Constructor for the photon.
+	 * @param position Position of the photon
+	 * @param direction Direction of the photon
+	 * @param power Power carried by the photon
+	 */
+	Photon(glm::vec3 position, glm::vec3 direction, glm::vec3 power)
+		: position(position), direction(direction), power(power)
+	{
+	}
+};
 
 /**
  Class representing a single ray.
@@ -34,9 +87,7 @@ public:
 						  @param origin Origin of the ray
 						  @param direction Direction of the ray
 						  */
-	Ray(glm::vec3 origin, glm::vec3 direction) : origin(origin), direction(direction)
-	{
-	}
+	Ray(glm::vec3 origin, glm::vec3 direction) : origin(origin), direction(direction) {}
 };
 
 class Object;
@@ -54,6 +105,9 @@ struct Hit
 	glm::vec3 tangent = glm::vec3(0.0f);
 	glm::vec3 bitangent = glm::vec3(0.0f);
 };
+
+// geoemtry
+// solid
 
 /**
  General class for the object
@@ -296,6 +350,8 @@ public:
 	}
 };
 
+// abstract
+// Axis Aligned Bounding box
 class AABB
 {
 public:
@@ -772,9 +828,15 @@ float trace_shadow_ray(Ray shadow_ray, float light_distance)
 	return shadow;
 }
 
+/*
+ models effect
+ */
+
+// rays
 glm::vec3 trace_ray(Ray ray);
 glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion);
 
+// lights
 glm::vec3 random_point_on_disk(float radius)
 {
 	// Generate random polar coordinates
@@ -797,30 +859,6 @@ glm::vec3 random_point_on_square(float light_size)
 	return glm::vec3(x, 0.0f, z); // Assuming the light is on the x-z plane
 }
 
-float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &random_point)
-{
-	// Create a shadow ray from the intersection point to the random point on the light source
-	glm::vec3 light_direction = glm::normalize(random_point - intersection_point);
-	Ray shadow_ray(intersection_point + 1e-4f * light_direction, light_direction); // Avoid self-intersection
-
-	// Check for intersection with scene objects
-	Hit closest_hit;
-	closest_hit.hit = false;
-	closest_hit.distance = INFINITY;
-
-	for (int k = 0; k < objects.size(); k++)
-	{
-		Hit hit = objects[k]->intersect(shadow_ray);
-		if (hit.hit && hit.distance < closest_hit.distance)
-		{
-			closest_hit = hit;
-		}
-	}
-
-	// If no object blocks the light, the ray is unblocked
-	return (closest_hit.hit && closest_hit.distance < glm::distance(intersection_point, random_point)) ? 0.0f : 1.0f;
-}
-
 glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_dir, glm::vec3 normal,
 								  glm::vec3 tangent, glm::vec3 bitangent, Material material)
 {
@@ -841,6 +879,39 @@ glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_di
 	float ward_term = NdotL * exp(exponent) / (sqrt(NdotL * NdotV) * 4.0f * M_PI * material.alpha_x * material.alpha_y);
 
 	return material.specular * ward_term;
+}
+
+// shadow
+float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &random_point)
+{
+	// Create a shadow ray from the intersection point to the random point on the light source
+	glm::vec3 light_direction = glm::normalize(random_point - intersection_point);
+	Ray shadow_ray(intersection_point + 1e-4f * light_direction, light_direction); // Avoid self-intersection
+
+	// Check for intersection with scene objects
+	Hit closest_hit;
+	closest_hit.hit = false;
+	closest_hit.distance = INFINITY;
+
+	// 3. Check if light_direction is within the cone
+	float cos_cone_angle = glm::cos(glm::radians(80.0f));
+	glm::vec3 cone_direction = glm::vec3(0.0f, -1.0f, 0.0f); // Downward cone
+	if (glm::dot(-light_direction, cone_direction) < cos_cone_angle && glm::dot(-light_direction, cone_direction) > -0.01)
+	{
+		return 0.0f; // Skip rays outside the cone
+	}
+
+	for (int k = 0; k < objects.size(); k++)
+	{
+		Hit hit = objects[k]->intersect(shadow_ray);
+		if (hit.hit && hit.distance < closest_hit.distance)
+		{
+			closest_hit = hit;
+		}
+	}
+
+	// If no object blocks the light, the ray is unblocked
+	return (closest_hit.hit && closest_hit.distance < glm::distance(intersection_point, random_point)) ? 0.0f : 1.0f;
 }
 
 /** Function for computing color of an object according to the Phong Model
@@ -968,6 +1039,142 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion)
 }
 
 /**
+ * Class representing a photon map.
+ */
+class PhotonMap
+{
+private:
+	std::vector<Photon> photons; ///< Collection of photons in the map
+
+public:
+	/**
+	 * Add a photon to the map.
+	 * @param photon The photon to add
+	 */
+	void addPhoton(const Photon &photon)
+	{
+		photons.push_back(photon);
+	}
+
+	/**
+	 * Estimate radiance at a given point using nearby photons.
+	 * @param position The position to estimate radiance
+	 * @param normal The surface normal at the position
+	 * @param radius The radius within which to consider photons
+	 * @return The estimated radiance
+	 */
+	glm::vec3 estimateRadiance(glm::vec3 &position, glm::vec3 &normal, float radius)
+	{
+		glm::vec3 radiance(0.0f);
+		float radiusSquared = radius * radius;
+
+		for (Photon &photon : photons)
+		{
+			float distanceSquared = glm::distance2(position, photon.position);
+			if (distanceSquared <= radiusSquared && glm::dot(normal, photon.direction) < 0)
+			{
+				radiance += photon.power / static_cast<float>(M_PI * radiusSquared);
+			}
+		}
+
+		return radiance;
+	}
+};
+
+/**
+ * Function to trace photons into the scene.
+ * @param scene The scene containing objects
+ * @param photonMap The photon map to store traced photons
+ * @param light The light source emitting photons
+ * @param numPhotons Number of photons to trace
+ */
+void tracePhotons(const std::vector<Object *> &scene, PhotonMap &photonMap, const Light &light, int numPhotons)
+{
+	for (int i = 0; i < numPhotons; i++)
+	{
+		// Generate a random direction for photon emission
+		glm::vec3 direction = randomHemisphereDirection(light.position);
+		glm::vec3 power = light.color / static_cast<float>(numPhotons);
+
+		Ray photonRay(light.position, glm::normalize(direction));
+
+		for (Object *object : scene)
+		{
+			Hit hit = object->intersect(photonRay);
+			if (hit.hit)
+			{
+				// Store the photon at the hit point
+				photonMap.addPhoton(Photon(hit.intersection, photonRay.direction, power));
+				// Scatter photon (diffuse or specular reflection)
+				photonRay.origin = hit.intersection;
+				photonRay.direction = randomHemisphereDirection(hit.normal);
+				power *= object->getMaterial().diffuse; // Adjust power based on material properties
+			}
+		}
+	}
+}
+
+/**
+ * Integrate photon mapping into rendering.
+ * @param ray The ray to trace
+ * @param photonMap The photon map
+ * @param maxDepth Maximum recursion depth
+ * @return The computed color for the ray
+ */
+glm::vec3 renderWithPhotonMapping(Ray &ray, PhotonMap &photonMap, const std::vector<Object *> &scene, int maxDepth, float radius)
+{
+	Hit hit;
+	glm::vec3 color(0.0f);
+	int depth = 0;
+
+	// Traverse the scene for intersections
+	while (depth < maxDepth)
+	{
+		bool foundHit = false;
+		for (Object *object : scene)
+		{
+			hit = object->intersect(ray);
+			if (hit.hit)
+			{
+				foundHit = true;
+
+				// Direct illumination
+				color += object->getMaterial().diffuse * photonMap.estimateRadiance(hit.intersection, hit.normal, radius);
+
+				// Generate reflection or transmission ray
+				Ray nextRay(hit.intersection, glm::reflect(ray.direction, hit.normal));
+				color += renderWithPhotonMapping(nextRay, photonMap, scene, maxDepth - 1, radius);
+
+				break;
+			}
+		}
+
+		if (!foundHit) // No intersection found
+		{
+			break;
+		}
+
+		depth++;
+	}
+
+	return color; // Return accumulated color
+}
+
+// Generate smoke particles in a hemisphere
+std::vector<std::array<double, 3>> generateSmoke(size_t numParticles)
+{
+	std::vector<std::array<double, 3>> smokeParticles;
+
+	for (size_t i = 0; i < numParticles; ++i)
+	{
+		auto dir = randomHemisphereDirection();
+		double scale = 0.1;
+		smokeParticles.push_back({scale * dir[0], scale * dir[1], scale * dir[2]});
+	}
+
+	return smokeParticles;
+}
+/**
  Functions that computes a color along the ray
  @param ray Ray that should be traced through the scene
  @return Color at the intersection point
@@ -981,7 +1188,7 @@ glm::vec3 trace_ray(Ray ray)
  */
 void sceneDefinition()
 {
-	float shininess_plane = 2.0f;
+	float shininess_plane = 0.2f;
 	float shininess_sphere = 10.0f;
 
 	Material red_plane;
@@ -1016,6 +1223,12 @@ void sceneDefinition()
 	green_plane.specular = glm::vec3(0.5);
 	green_plane.shininess = shininess_plane;
 
+	Material yellow_plane;
+	green_plane.diffuse = glm::vec3(0.8f, 0.8f, 0.3f);
+	green_plane.ambient = green_plane.diffuse / glm::vec3(10);
+	green_plane.specular = glm::vec3(0.0);
+	green_plane.shininess = shininess_plane;
+
 	Material green_sphere;
 	green_sphere.diffuse = glm::vec3(0.2f, 1.0f, 0.2f);
 	green_sphere.ambient = green_sphere.diffuse / glm::vec3(10);
@@ -1024,42 +1237,92 @@ void sceneDefinition()
 	green_sphere.is_anisotropic = true;
 	green_sphere.alpha_x = 0.8f;
 
-	Material cube_material;
-	cube_material.is_reflective = true;
-	cube_material.reflection = 1.0f;
+	// Define smoke material (for visualization in the scene)
+	Material smoke_material;
+	smoke_material.diffuse = glm::vec3(0.1f, 0.1f, 0.1f); // Light gray color for smoke
+	smoke_material.ambient = smoke_material.diffuse / glm::vec3(1);
+	smoke_material.specular = glm::vec3(0.0f);
+	smoke_material.shininess = 0.0f;
+
+	// Add the smoke cube as a bounding volume for the smoke effect (no new object, just volume definition)
+	glm::vec3 smoke_min(-0.1f, -0.1f, 0.3f);
+	glm::vec3 smoke_max(0.05f, 0.05f, 0.07f);
+
+	// Semi-transparent material with Fresnel effect
+	Material transparent_material;
+	transparent_material.diffuse = glm::vec3(0.3f, 0.3f, 1.0f); // Semi-transparent blue color
+	transparent_material.ambient = transparent_material.diffuse / glm::vec3(5);
+	transparent_material.specular = glm::vec3(0.1f);
+	transparent_material.shininess = 0.2f;	// Semi-transparent
+	transparent_material.reflection = 0.2f; // Fresnel effect based on refraction index
+
+	Material reflex;
+	reflex.diffuse = glm::vec3(0.3f, 0.3f, 1.0f); // Semi-transparent blue color
+	reflex.ambient = transparent_material.diffuse / glm::vec3(5);
+	reflex.specular = glm::vec3(0.5f);
+	reflex.shininess = 0.2f;  // Semi-transparent
+	reflex.reflection = 0.2f; // Fresnel effect based on refraction index
 
 	// Spheres
-	objects.push_back(new Sphere(1.0, glm::vec3(-2, -2, 4), green_sphere));
-	objects.push_back(new Sphere(0.5, glm::vec3(-0.5, -2.5, 2.5), blue_sphere));
-	objects.push_back(new Sphere(0.5, glm::vec3(2, -2.5, 4), red_sphere));
+	objects.push_back(new Sphere(1.0, glm::vec3(-2, -1, 5), green_sphere));
+	objects.push_back(new Sphere(0.7, glm::vec3(0, -2.5, 4), smoke_material));
+	objects.push_back(new Sphere(0.5, glm::vec3(-1.5, -2.5, 3), red_sphere));
+	objects.push_back(new Sphere(0.5, glm::vec3(-1.5, 1.6, 2.3), reflex));
 
 	// Lights
 	lights.push_back(new Light(glm::vec3(0, 2.99, 4), glm::vec3(0.05)));
 
 	// Planes
 	// planes above and below
-	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0)));
-	objects.push_back(new Plane(glm::vec3(0, 3, 0), glm::vec3(0.0, -1, 0)));
+	objects.push_back(new Plane(glm::vec3(0, -3, 0), glm::vec3(0.0, 1, 0), blue_plane));
+	objects.push_back(new Plane(glm::vec3(0, 3, 0), glm::vec3(0.0, -1, 0), green_plane));
 
 	// planes right and left
-	objects.push_back(new Plane(glm::vec3(-3, 0, 0), glm::vec3(1.0, 0.0, 0.0), red_plane));
-	objects.push_back(new Plane(glm::vec3(3, 0, 0), glm::vec3(-1.0, 0.0, 0.0), green_plane));
+	objects.push_back(new Plane(glm::vec3(-3, 0, 0), glm::vec3(1.0, 0.0, 0.0), transparent_material));
+	objects.push_back(new Plane(glm::vec3(3, 0, 0), glm::vec3(-1.0, 0.0, 0.0), red_plane));
 
 	// plane front
-	objects.push_back(new Plane(glm::vec3(0, 0, 6), glm::vec3(0.0, 0.0, -1.0)));
+	objects.push_back(new Plane(glm::vec3(0, 0, 6), glm::vec3(0.0, 0.0, -1.0), yellow_plane));
 
 	glm::mat4 translation;
 	glm::mat4 scaling;
 	glm::mat4 rotation;
 
-	Mesh *cube = new Mesh("../../../Rendering Competition/code/meshes/cube.obj", cube_material);
-	translation = glm::translate(glm::vec3(0.5f, -2.25f, 5.0f));
-	scaling = glm::scale(glm::vec3(1.5f));
-	rotation = glm::rotate(glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	Mesh *cube = new Mesh("./meshes/cube.obj");
+	translation = glm::translate(glm::vec3(1.5f, -2.5f, 3.5f));
+	scaling = glm::scale(glm::vec3(0.9f));
+	rotation = glm::rotate(glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 	cube->setTransformation(translation * rotation * scaling);
 	objects.push_back(cube);
+
+	Cone *cone = new Cone(transparent_material);
+	translation = glm::translate(glm::vec3(1.0f, -1.5f, 4.5f));
+	scaling = glm::scale(glm::vec3(0.5f, 3.0f, 0.5f));
+	rotation = glm::rotate(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	cone->setTransformation(translation * rotation * scaling);
+	cone->setMaterial(green_plane);
+	objects.push_back(cone);
+
+	Mesh *ring = new Mesh("./meshes/ring.obj");
+	translation = glm::translate(glm::vec3(1.0f, 1.0f, 4.5f));
+	scaling = glm::scale(glm::vec3(0.7f));
+	rotation = glm::rotate(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	ring->setTransformation(translation * rotation * scaling);
+	ring->setMaterial(yellow_plane);
+	objects.push_back(ring);
+
+	Mesh *iso = new Mesh("./meshes/isocat.obj");
+	translation = glm::translate(glm::vec3(-1.0f, 1.7f, 4.5f));
+	scaling = glm::scale(glm::vec3(0.5f));
+	rotation = glm::rotate(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	iso->setMaterial(transparent_material);
+	iso->setTransformation(translation * rotation * scaling);
+	objects.push_back(iso);
 }
+
 glm::vec3 toneMapping(glm::vec3 intensity)
 {
 	float gamma = 1.0 / 2.0;
@@ -1067,24 +1330,31 @@ glm::vec3 toneMapping(glm::vec3 intensity)
 	return glm::clamp(alpha * glm::pow(intensity, glm::vec3(gamma)), glm::vec3(0.0), glm::vec3(1.0));
 }
 
-void printProgress(float progress, float eta_seconds)
+// smoke
+
+glm::vec3 renderSmoke(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection, const float stepSize)
 {
-	int barWidth = 70;
-	cout << "[";
-	int pos = barWidth * progress;
-	for (int i = 0; i < barWidth; ++i)
+	glm::vec3 color(0.0f);
+	glm::vec3 attenuation(1.0f); // Track light attenuation
+
+	for (float t = 0.0f; t < 1.0f; t += stepSize)
 	{
-		if (i < pos)
-			cout << "=";
-		else if (i == pos)
-			cout << ">";
-		else
-			cout << " ";
+		glm::vec3 position = rayOrigin + t * rayDirection;
+
+		// Compute density at this position (in a real implementation, interpolate from the grid)
+		float density = getDensity(position);
+
+		// Add contribution to the color
+		color += attenuation * density;
+
+		// Attenuate light
+		attenuation *= glm::vec3(1.0f - density * stepSize);
 	}
-	cout << "] " << int(progress * 100.0) << " %";
-	cout << " ETA: " << setw(4) << fixed << setprecision(1) << eta_seconds << "s  \r";
-	cout.flush();
+
+	return color;
 }
+
+// deph of field
 
 glm::vec2 randomPointOnDisk(float radius)
 {
@@ -1123,6 +1393,25 @@ glm::vec3 depthOfFieldRayTrace(const Ray &primary_ray,
 	return color / float(dof_samples);
 }
 
+void printProgress(float progress, float eta_seconds)
+{
+	int barWidth = 70;
+	cout << "[";
+	int pos = barWidth * progress;
+	for (int i = 0; i < barWidth; ++i)
+	{
+		if (i < pos)
+			cout << "=";
+		else if (i == pos)
+			cout << ">";
+		else
+			cout << " ";
+	}
+	cout << "] " << int(progress * 100.0) << " %";
+	cout << " ETA: " << setw(4) << fixed << setprecision(1) << eta_seconds << "s  \r";
+	cout.flush();
+}
+
 int main(int argc, const char *argv[])
 {
 	omp_set_num_threads(12);
@@ -1130,8 +1419,8 @@ int main(int argc, const char *argv[])
 	clock_t t = clock(); // variable for keeping the time of the rendering
 	clock_t start_time = clock();
 
-	int width = 500;  // width of the image
-	int height = 500; // height of the image
+	int width = 100;  // width of the image
+	int height = 100; // height of the image
 	float fov = 90;	  // field of view
 
 	sceneDefinition(); // Let's define a scene
@@ -1146,12 +1435,16 @@ int main(int argc, const char *argv[])
 	int totalPixels = width * height;
 	int iteration = 0;
 
-	int aa_samples = 16;  // Supersampling for anti-aliasing
-	int dof_samples = 16; // Number of samples for depth of field
+	int aa_samples = 4;	 // Supersampling for anti-aliasing
+	int dof_samples = 3; // Number of samples for depth of field
 	// DEFAULT 0.5f
-	float aperture_radius = 0.3f; // Controls the size of the blur (lens aperture)
+	float aperture_radius = 0.05f; // Controls the size of the blur (lens aperture)
 	// DEFAULT 8.0f
-	float focal_length = 4.0f; // Distance to the focal plane
+	float focal_length = 3.0f; // Distance to the focal plane
+	size_t numParticles = 3;
+	
+	// Generate smoke
+	auto smoke = generateSmoke(numParticles);
 
 #pragma omp parallel for
 	for (int i = 0; i < width; i++)
