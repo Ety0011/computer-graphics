@@ -33,11 +33,9 @@ float getDensity(const glm::vec3 &position)
 
 glm::vec3 randomHemisphereDirection(const glm::vec3 &normal = glm::vec3(0.0f, 0.0f, 1.0f))
 {
-	// Use glm to generate random spherical coordinates
-	float theta = glm::linearRand(0.0f, glm::two_pi<float>()); // Azimuthal angle
-	float phi = glm::linearRand(0.0f, glm::half_pi<float>());  // Polar angle (only half-sphere)
+	float theta = glm::linearRand(0.0f, glm::two_pi<float>());
+	float phi = glm::linearRand(0.0f, glm::half_pi<float>());
 
-	// Convert spherical coordinates to Cartesian coordinates
 	glm::vec3 randomDir(
 		std::sin(phi) * std::cos(theta),
 		std::sin(phi) * std::sin(theta),
