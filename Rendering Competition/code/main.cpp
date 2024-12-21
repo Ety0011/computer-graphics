@@ -1160,20 +1160,6 @@ glm::vec3 renderWithPhotonMapping(Ray &ray, PhotonMap &photonMap, const std::vec
 	return color; // Return accumulated color
 }
 
-// Generate smoke particles in a hemisphere
-std::vector<std::array<double, 3>> generateSmoke(size_t numParticles)
-{
-	std::vector<std::array<double, 3>> smokeParticles;
-
-	for (size_t i = 0; i < numParticles; ++i)
-	{
-		auto dir = randomHemisphereDirection();
-		double scale = 0.1;
-		smokeParticles.push_back({scale * dir[0], scale * dir[1], scale * dir[2]});
-	}
-
-	return smokeParticles;
-}
 /**
  Functions that computes a color along the ray
  @param ray Ray that should be traced through the scene
@@ -1183,6 +1169,7 @@ glm::vec3 trace_ray(Ray ray)
 {
 	return trace_ray_recursive(ray, 0);
 }
+
 /**
  Function defining the scene
  */
@@ -1237,31 +1224,31 @@ void sceneDefinition()
 	green_sphere.is_anisotropic = true;
 	green_sphere.alpha_x = 0.8f;
 
-	// Define smoke material (for visualization in the scene)
+	// smoke material -> not well implemented
 	Material smoke_material;
-	smoke_material.diffuse = glm::vec3(0.1f, 0.1f, 0.1f); // Light gray color for smoke
+	smoke_material.diffuse = glm::vec3(0.1f, 0.1f, 0.1f); 
 	smoke_material.ambient = smoke_material.diffuse / glm::vec3(1);
 	smoke_material.specular = glm::vec3(0.0f);
 	smoke_material.shininess = 0.0f;
 
-	// Add the smoke cube as a bounding volume for the smoke effect (no new object, just volume definition)
+	// smoke cube -> not implemented
 	glm::vec3 smoke_min(-0.1f, -0.1f, 0.3f);
-	glm::vec3 smoke_max(0.05f, 0.05f, 0.07f);
+	glm::vec3 smoke_max(0.1f, 0.1f, 0.1f);
 
-	// Semi-transparent material with Fresnel effect
 	Material transparent_material;
-	transparent_material.diffuse = glm::vec3(0.3f, 0.3f, 1.0f); // Semi-transparent blue color
+	transparent_material.diffuse = glm::vec3(0.3f, 0.3f, 1.0f); 
 	transparent_material.ambient = transparent_material.diffuse / glm::vec3(5);
 	transparent_material.specular = glm::vec3(0.1f);
-	transparent_material.shininess = 0.2f;	// Semi-transparent
-	transparent_material.reflection = 0.2f; // Fresnel effect based on refraction index
+	transparent_material.shininess = 0.2f;
+	transparent_material.reflection = 0.2f; 
 
+	//high reflective material
 	Material reflex;
-	reflex.diffuse = glm::vec3(0.3f, 0.3f, 1.0f); // Semi-transparent blue color
+	reflex.diffuse = glm::vec3(0.3f, 0.3f, 1.0f); 
 	reflex.ambient = transparent_material.diffuse / glm::vec3(5);
 	reflex.specular = glm::vec3(0.5f);
-	reflex.shininess = 0.2f;  // Semi-transparent
-	reflex.reflection = 0.2f; // Fresnel effect based on refraction index
+	reflex.shininess = 0.2f; 
+	reflex.reflection = 0.2f;
 
 	// Spheres
 	objects.push_back(new Sphere(1.0, glm::vec3(-2, -1, 5), green_sphere));
@@ -1288,32 +1275,34 @@ void sceneDefinition()
 	glm::mat4 scaling;
 	glm::mat4 rotation;
 
-	Mesh *cube = new Mesh("./meshes/cube.obj");
-	translation = glm::translate(glm::vec3(1.5f, -2.5f, 3.5f));
-	scaling = glm::scale(glm::vec3(0.9f));
-	rotation = glm::rotate(glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-	cube->setTransformation(translation * rotation * scaling);
-	objects.push_back(cube);
-
+	//Cone
 	Cone *cone = new Cone(transparent_material);
 	translation = glm::translate(glm::vec3(1.0f, -1.5f, 4.5f));
 	scaling = glm::scale(glm::vec3(0.5f, 3.0f, 0.5f));
 	rotation = glm::rotate(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
 	cone->setTransformation(translation * rotation * scaling);
 	cone->setMaterial(green_plane);
 	objects.push_back(cone);
 
+	//Files
+	// cube
+	Mesh *cube = new Mesh("./meshes/cube.obj");
+	translation = glm::translate(glm::vec3(1.5f, -2.5f, 3.5f));
+	scaling = glm::scale(glm::vec3(0.9f));
+	rotation = glm::rotate(glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	cube->setTransformation(translation * rotation * scaling);
+	objects.push_back(cube);
+
+	// ring
 	Mesh *ring = new Mesh("./meshes/ring.obj");
 	translation = glm::translate(glm::vec3(1.0f, 1.0f, 4.5f));
 	scaling = glm::scale(glm::vec3(0.7f));
 	rotation = glm::rotate(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
 	ring->setTransformation(translation * rotation * scaling);
 	ring->setMaterial(yellow_plane);
 	objects.push_back(ring);
 
+	//isocaedro
 	Mesh *iso = new Mesh("./meshes/isocat.obj");
 	translation = glm::translate(glm::vec3(-1.0f, 1.7f, 4.5f));
 	scaling = glm::scale(glm::vec3(0.5f));
@@ -1331,7 +1320,22 @@ glm::vec3 toneMapping(glm::vec3 intensity)
 }
 
 // smoke
+// Generate smoke particles in a hemisphere
+std::vector<std::array<double, 3>> generateSmoke(size_t numParticles)
+{
+	std::vector<std::array<double, 3>> smokeParticles;
 
+	for (size_t i = 0; i < numParticles; ++i)
+	{
+		auto dir = randomHemisphereDirection();
+		double scale = 0.1;
+		smokeParticles.push_back({scale * dir[0], scale * dir[1], scale * dir[2]});
+	}
+
+	return smokeParticles;
+}
+// smoke -> not implemented
+// simulates the rendering of smoke along a ray by computing its density and light attenuation over a series of steps
 glm::vec3 renderSmoke(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection, const float stepSize)
 {
 	glm::vec3 color(0.0f);
@@ -1355,7 +1359,6 @@ glm::vec3 renderSmoke(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection,
 }
 
 // deph of field
-
 glm::vec2 randomPointOnDisk(float radius)
 {
 	static std::default_random_engine generator;
@@ -1442,7 +1445,7 @@ int main(int argc, const char *argv[])
 	// DEFAULT 8.0f
 	float focal_length = 3.0f; // Distance to the focal plane
 	size_t numParticles = 3;
-	
+
 	// Generate smoke
 	auto smoke = generateSmoke(numParticles);
 
