@@ -142,9 +142,7 @@ public:
 	@param matrix The matrix representing the transformation of the object in the global coordinates */
 	virtual void setTransformation(glm::mat4 matrix)
 	{
-
 		transformationMatrix = matrix;
-
 		inverseTransformationMatrix = glm::inverse(matrix);
 		normalMatrix = glm::transpose(inverseTransformationMatrix);
 	}
@@ -210,24 +208,16 @@ public:
 			hit.distance = glm::distance(ray.origin, hit.intersection);
 			hit.object = this;
 
-			// Calculate tangent and bitangent vectors at the intersection point
 			glm::vec3 normal = hit.normal;
-
-			// Arbitrary vector (world up vector) to compute tangent
 			glm::vec3 arbitrary_up = glm::vec3(0.0f, 1.0f, 0.0f);
-
-			// If the normal is parallel to the arbitrary up vector, use a different vector
 			if (glm::dot(normal, arbitrary_up) > 0.999f)
 			{
 				arbitrary_up = glm::vec3(1.0f, 0.0f, 0.0f);
 			}
 
-			// Calculate tangent vector (perpendicular to the normal)
 			glm::vec3 tangent = glm::normalize(glm::cross(normal, arbitrary_up));
-			// Calculate bitangent vector (perpendicular to both normal and tangent)
 			glm::vec3 bitangent = glm::cross(normal, tangent);
 
-			// Store tangent and bitangent in the hit object
 			hit.tangent = tangent;
 			hit.bitangent = bitangent;
 		}
@@ -783,8 +773,6 @@ public:
 };
 
 vector<Light *> lights; ///< A list of lights in the scene
-// glm::vec3 ambient_light(0.1,0.1,0.1);
-//  new ambient light
 glm::vec3 ambient_light(0.0005, 0.0005, 0.0005);
 vector<Object *> objects; ///< A list of all objects in the scene
 
@@ -839,15 +827,12 @@ glm::vec3 trace_ray_recursive(Ray ray, int depth_recursion);
 // lights
 glm::vec3 random_point_on_disk(float radius)
 {
-	// Generate random polar coordinates
 	float theta = 2.0f * M_PI * float(rand()) / RAND_MAX; // Random angle [0, 2π]
 	float r = radius * sqrt(float(rand()) / RAND_MAX);	  // Random radius with sqrt for uniform distribution
 
-	// Convert polar to Cartesian coordinates
 	float x = r * cos(theta);
 	float z = r * sin(theta);
 
-	// Disk lies on the XZ plane, Y is 0
 	return glm::vec3(x, 0.0f, z);
 }
 
@@ -856,7 +841,7 @@ glm::vec3 random_point_on_square(float light_size)
 	float half_size = light_size * 0.5f;
 	float x = (float(rand()) / RAND_MAX) * light_size - half_size;
 	float z = (float(rand()) / RAND_MAX) * light_size - half_size;
-	return glm::vec3(x, 0.0f, z); // Assuming the light is on the x-z plane
+	return glm::vec3(x, 0.0f, z);
 }
 
 glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_dir, glm::vec3 normal,
@@ -884,21 +869,18 @@ glm::vec3 calculate_ward_specular(glm::vec3 to_light_dir, glm::vec3 to_camera_di
 // shadow
 float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &random_point)
 {
-	// Create a shadow ray from the intersection point to the random point on the light source
 	glm::vec3 light_direction = glm::normalize(random_point - intersection_point);
-	Ray shadow_ray(intersection_point + 1e-4f * light_direction, light_direction); // Avoid self-intersection
+	Ray shadow_ray(intersection_point + 1e-4f * light_direction, light_direction);
 
-	// Check for intersection with scene objects
 	Hit closest_hit;
 	closest_hit.hit = false;
 	closest_hit.distance = INFINITY;
 
-	// 3. Check if light_direction is within the cone
 	float cos_cone_angle = glm::cos(glm::radians(80.0f));
-	glm::vec3 cone_direction = glm::vec3(0.0f, -1.0f, 0.0f); // Downward cone
+	glm::vec3 cone_direction = glm::vec3(0.0f, -1.0f, 0.0f);
 	if (glm::dot(-light_direction, cone_direction) < cos_cone_angle && glm::dot(-light_direction, cone_direction) > -0.01)
 	{
-		return 0.0f; // Skip rays outside the cone
+		return 0.0f;
 	}
 
 	for (int k = 0; k < objects.size(); k++)
@@ -910,7 +892,6 @@ float compute_soft_shadow(const glm::vec3 &intersection_point, const glm::vec3 &
 		}
 	}
 
-	// If no object blocks the light, the ray is unblocked
 	return (closest_hit.hit && closest_hit.distance < glm::distance(intersection_point, random_point)) ? 0.0f : 1.0f;
 }
 
@@ -930,20 +911,16 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 	{
 		glm::vec3 light_position = lights[light_num]->position;
 		float light_radius = lights[light_num]->radius;
-		glm::vec3 color_contribution(0.0f); // To accumulate the color contribution from the light
+		glm::vec3 color_contribution(0.0f);
 
-		// Sample multiple points on the light's square surface
 		for (int sample_num = 0; sample_num < light_samples; sample_num++)
 		{
-			// Sample a random point on the square light source
 			glm::vec3 random_point = light_position + random_point_on_square(light_radius);
 
-			// Calculate direction to the light sample point
 			glm::vec3 to_light_dir = glm::normalize(random_point - point);
 			glm::vec3 reflected_from_light_dir = glm::reflect(-to_light_dir, normal);
 			float light_distance = glm::distance(point, random_point);
 
-			// Compute diffuse and specular components
 			float cosOmega = glm::clamp(glm::dot(normal, to_light_dir), 0.0f, 1.0f);
 			glm::vec3 diffuse = material.diffuse * glm::vec3(cosOmega);
 
@@ -959,18 +936,14 @@ glm::vec3 PhongModel(glm::vec3 point, glm::vec3 normal, glm::vec3 to_camera_dir,
 				specular = material.specular * glm::vec3(pow(cosAlpha, material.shininess));
 			}
 
-			// Compute the soft shadow visibility term for this point on the light
 			float visibility = compute_soft_shadow(point, random_point);
 
-			// Attenuation based on distance
 			float r = max(light_distance, 0.1f);
 			glm::vec3 light_contribution = lights[light_num]->color * (diffuse + specular) * visibility / pow(r, 2.0f);
 
-			// Accumulate the light contribution from this sample point
 			color_contribution += light_contribution;
 		}
 
-		// Average the contributions from all samples for this light
 		color += color_contribution / float(light_samples);
 	}
 
@@ -1092,7 +1065,6 @@ void tracePhotons(const std::vector<Object *> &scene, PhotonMap &photonMap, cons
 {
 	for (int i = 0; i < numPhotons; i++)
 	{
-		// Generate a random direction for photon emission
 		glm::vec3 direction = randomHemisphereDirection(light.position);
 		glm::vec3 power = light.color / static_cast<float>(numPhotons);
 
@@ -1103,12 +1075,10 @@ void tracePhotons(const std::vector<Object *> &scene, PhotonMap &photonMap, cons
 			Hit hit = object->intersect(photonRay);
 			if (hit.hit)
 			{
-				// Store the photon at the hit point
 				photonMap.addPhoton(Photon(hit.intersection, photonRay.direction, power));
-				// Scatter photon (diffuse or specular reflection)
 				photonRay.origin = hit.intersection;
 				photonRay.direction = randomHemisphereDirection(hit.normal);
-				power *= object->getMaterial().diffuse; // Adjust power based on material properties
+				power *= object->getMaterial().diffuse;
 			}
 		}
 	}
@@ -1127,7 +1097,6 @@ glm::vec3 renderWithPhotonMapping(Ray &ray, PhotonMap &photonMap, const std::vec
 	glm::vec3 color(0.0f);
 	int depth = 0;
 
-	// Traverse the scene for intersections
 	while (depth < maxDepth)
 	{
 		bool foundHit = false;
@@ -1138,10 +1107,8 @@ glm::vec3 renderWithPhotonMapping(Ray &ray, PhotonMap &photonMap, const std::vec
 			{
 				foundHit = true;
 
-				// Direct illumination
 				color += object->getMaterial().diffuse * photonMap.estimateRadiance(hit.intersection, hit.normal, radius);
 
-				// Generate reflection or transmission ray
 				Ray nextRay(hit.intersection, glm::reflect(ray.direction, hit.normal));
 				color += renderWithPhotonMapping(nextRay, photonMap, scene, maxDepth - 1, radius);
 
@@ -1149,7 +1116,7 @@ glm::vec3 renderWithPhotonMapping(Ray &ray, PhotonMap &photonMap, const std::vec
 			}
 		}
 
-		if (!foundHit) // No intersection found
+		if (!foundHit)
 		{
 			break;
 		}
@@ -1157,7 +1124,7 @@ glm::vec3 renderWithPhotonMapping(Ray &ray, PhotonMap &photonMap, const std::vec
 		depth++;
 	}
 
-	return color; // Return accumulated color
+	return color;
 }
 
 /**
@@ -1226,7 +1193,7 @@ void sceneDefinition()
 
 	// smoke material -> not well implemented
 	Material smoke_material;
-	smoke_material.diffuse = glm::vec3(0.1f, 0.1f, 0.1f); 
+	smoke_material.diffuse = glm::vec3(0.1f, 0.1f, 0.1f);
 	smoke_material.ambient = smoke_material.diffuse / glm::vec3(1);
 	smoke_material.specular = glm::vec3(0.0f);
 	smoke_material.shininess = 0.0f;
@@ -1236,18 +1203,18 @@ void sceneDefinition()
 	glm::vec3 smoke_max(0.1f, 0.1f, 0.1f);
 
 	Material transparent_material;
-	transparent_material.diffuse = glm::vec3(0.3f, 0.3f, 1.0f); 
+	transparent_material.diffuse = glm::vec3(0.3f, 0.3f, 1.0f);
 	transparent_material.ambient = transparent_material.diffuse / glm::vec3(5);
 	transparent_material.specular = glm::vec3(0.1f);
 	transparent_material.shininess = 0.2f;
-	transparent_material.reflection = 0.2f; 
+	transparent_material.reflection = 0.2f;
 
-	//high reflective material
+	// high reflective material
 	Material reflex;
-	reflex.diffuse = glm::vec3(0.3f, 0.3f, 1.0f); 
+	reflex.diffuse = glm::vec3(0.3f, 0.3f, 1.0f);
 	reflex.ambient = transparent_material.diffuse / glm::vec3(5);
 	reflex.specular = glm::vec3(0.5f);
-	reflex.shininess = 0.2f; 
+	reflex.shininess = 0.2f;
 	reflex.reflection = 0.2f;
 
 	// Spheres
@@ -1275,7 +1242,7 @@ void sceneDefinition()
 	glm::mat4 scaling;
 	glm::mat4 rotation;
 
-	//Cone
+	// Cone
 	Cone *cone = new Cone(transparent_material);
 	translation = glm::translate(glm::vec3(1.0f, -1.5f, 4.5f));
 	scaling = glm::scale(glm::vec3(0.5f, 3.0f, 0.5f));
@@ -1284,9 +1251,9 @@ void sceneDefinition()
 	cone->setMaterial(green_plane);
 	objects.push_back(cone);
 
-	//Files
-	// cube
-	Mesh *cube = new Mesh("./meshes/cube.obj");
+	// Files
+	//  cube
+	Mesh *cube = new Mesh("../../../Rendering Competition/code/meshes/cube.obj");
 	translation = glm::translate(glm::vec3(1.5f, -2.5f, 3.5f));
 	scaling = glm::scale(glm::vec3(0.9f));
 	rotation = glm::rotate(glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -1294,7 +1261,7 @@ void sceneDefinition()
 	objects.push_back(cube);
 
 	// ring
-	Mesh *ring = new Mesh("./meshes/ring.obj");
+	Mesh *ring = new Mesh("../../../Rendering Competition/code/meshes/ring.obj");
 	translation = glm::translate(glm::vec3(1.0f, 1.0f, 4.5f));
 	scaling = glm::scale(glm::vec3(0.7f));
 	rotation = glm::rotate(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -1302,8 +1269,8 @@ void sceneDefinition()
 	ring->setMaterial(yellow_plane);
 	objects.push_back(ring);
 
-	//isocaedro
-	Mesh *iso = new Mesh("./meshes/isocat.obj");
+	// isocaedro
+	Mesh *iso = new Mesh("../../../Rendering Competition/code/meshes/isocat.obj");
 	translation = glm::translate(glm::vec3(-1.0f, 1.7f, 4.5f));
 	scaling = glm::scale(glm::vec3(0.5f));
 	rotation = glm::rotate(glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -1339,33 +1306,27 @@ std::vector<std::array<double, 3>> generateSmoke(size_t numParticles)
 glm::vec3 renderSmoke(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection, const float stepSize)
 {
 	glm::vec3 color(0.0f);
-	glm::vec3 attenuation(1.0f); // Track light attenuation
+	glm::vec3 attenuation(1.0f);
 
 	for (float t = 0.0f; t < 1.0f; t += stepSize)
 	{
 		glm::vec3 position = rayOrigin + t * rayDirection;
-
-		// Compute density at this position (in a real implementation, interpolate from the grid)
 		float density = getDensity(position);
-
-		// Add contribution to the color
 		color += attenuation * density;
-
-		// Attenuate light
 		attenuation *= glm::vec3(1.0f - density * stepSize);
 	}
 
 	return color;
 }
 
-// deph of field
+// depth of field
 glm::vec2 randomPointOnDisk(float radius)
 {
 	static std::default_random_engine generator;
 	static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
 
-	float r = radius * sqrt(distribution(generator));	 // Disk radius
-	float theta = 2.0f * M_PI * distribution(generator); // Angle
+	float r = radius * sqrt(distribution(generator));
+	float theta = 2.0f * M_PI * distribution(generator);
 	return glm::vec2(r * cos(theta), r * sin(theta));
 }
 
@@ -1376,23 +1337,18 @@ glm::vec3 depthOfFieldRayTrace(const Ray &primary_ray,
 
 	for (int i = 0; i < dof_samples; i++)
 	{
-		// 1. Sample a point on the aperture (lens)
 		glm::vec2 lens_sample = randomPointOnDisk(aperture_radius);
 		glm::vec3 lens_point = primary_ray.origin + glm::vec3(lens_sample.x, lens_sample.y, 0.0f);
 
-		// 2. Compute the focal point
-		float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, 1)); // Assumes camera looks along Z
+		float t = focal_length / glm::dot(primary_ray.direction, glm::vec3(0, 0, 1));
 		glm::vec3 focal_point = primary_ray.origin + t * primary_ray.direction;
 
-		// 3. Create a new ray toward the focal point
 		glm::vec3 new_direction = glm::normalize(focal_point - lens_point);
 		Ray new_ray(lens_point, new_direction);
 
-		// 4. Trace the new ray and accumulate color
 		color += trace_ray(new_ray);
 	}
 
-	// 5. Average the color
 	return color / float(dof_samples);
 }
 
@@ -1419,16 +1375,16 @@ int main(int argc, const char *argv[])
 {
 	omp_set_num_threads(12);
 
-	clock_t t = clock(); // variable for keeping the time of the rendering
+	clock_t t = clock();
 	clock_t start_time = clock();
 
 	int width = 100;  // width of the image
 	int height = 100; // height of the image
 	float fov = 90;	  // field of view
 
-	sceneDefinition(); // Let's define a scene
+	sceneDefinition();
 
-	Image image(width, height); // Create an image where we will store the result
+	Image image(width, height);
 	vector<glm::vec3> image_values(width * height);
 
 	float s = 2 * tan(0.5 * fov / 180 * M_PI) / width;
@@ -1439,11 +1395,9 @@ int main(int argc, const char *argv[])
 	int iteration = 0;
 
 	int aa_samples = 4;	 // Supersampling for anti-aliasing
-	int dof_samples = 3; // Number of samples for depth of field
-	// DEFAULT 0.5f
-	float aperture_radius = 0.05f; // Controls the size of the blur (lens aperture)
-	// DEFAULT 8.0f
-	float focal_length = 3.0f; // Distance to the focal plane
+	int dof_samples = 3; // Supersampling for depth of field
+	float aperture_radius = 0.05f;
+	float focal_length = 3.0f;
 	size_t numParticles = 3;
 
 	// Generate smoke
@@ -1453,7 +1407,7 @@ int main(int argc, const char *argv[])
 	for (int i = 0; i < width; i++)
 		for (int j = 0; j < height; j++)
 		{
-			glm::vec3 color(0.0f); // Accumulator for averaged color
+			glm::vec3 color(0.0f);
 
 			for (int k = 0; k < aa_samples; ++k)
 			{
@@ -1480,14 +1434,10 @@ int main(int argc, const char *argv[])
 			{
 #pragma omp critical
 				{
-					// Calculate progress
 					float progress = (float)(iteration) / totalPixels;
 
-					// Calculate elapsed time
 					clock_t current_time = clock();
 					float elapsed_seconds = float(current_time - start_time) / CLOCKS_PER_SEC;
-
-					// Estimate remaining time
 					float eta_seconds = (elapsed_seconds / progress) * (1 - progress);
 
 					printProgress(progress, eta_seconds);
@@ -1501,7 +1451,6 @@ int main(int argc, const char *argv[])
 	cout << "It took " << ((float)t) / CLOCKS_PER_SEC << " seconds to render the image." << endl;
 	cout << "I could render at " << (float)CLOCKS_PER_SEC / ((float)t) << " frames per second." << endl;
 
-	// Writing the final results of the rendering
 	if (argc == 2)
 	{
 		image.writeImage(argv[1]);
